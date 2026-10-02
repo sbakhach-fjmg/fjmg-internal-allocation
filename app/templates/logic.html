@@ -92,7 +92,7 @@ function move(btn, dir){
     <p><b>Adj</b> — the same average shrunk toward the cohort-wide mean: <code>(n × store avg + K × cohort avg) / (n + K)</code>. With K = {{logic.k|int}}, a store with {{logic.k|int}} deals is weighted half on its own numbers; with 3 deals mostly on the group's.</p>
     <p><b>Med days / Adj days</b> — median and shrunk average of receive → sold days (clipped to 1–365).</p>
     <p><b>Gross / slot / yr</b> — adj total × 365 / adj days (days floored at {{MIN_DAYS}}).</p>
-    <p><b>Similar</b> — for the vehicle being placed, each of the store's sold units scores (matching attributes ÷ attributes known) across trim, drivetrain, powertrain, body, mileage band, color and year; the store's figure is the sum, i.e. a count of look-alike units.</p>
+    <p><b>Similar</b> — for the vehicle being placed, each of the store's sold units scores 0–1: half from matching spec attributes (trim, drivetrain, powertrain, body, mileage band, color, year) and half from the share of the car's factory packages the unit also carries. The store's figure is the sum, i.e. a count of look-alike units. <b>Options match</b> is that package share on its own, averaged over the store's units.</p>
     <p><b>Ranked / thin</b> — a store needs {{logic.min_store}} deals in the cohort to be ranked; thinner stores are listed but greyed out.</p>
   </div>
 </div>

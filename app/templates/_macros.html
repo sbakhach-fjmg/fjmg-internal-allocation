@@ -20,7 +20,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
   <thead><tr class="text-left text-xs uppercase text-slate-500">
     <th>#</th><th>Store</th>
     <th class="text-right {{ 'text-slate-900' if hl=='n' }}">Sold</th>
-    {% if show_similar %}<th class="text-right {{ 'text-slate-900' if hl=='similar' }}" title="Count of look-alike units (attribute overlap with the vehicle being placed)">Similar</th>{% endif %}
+    {% if show_similar %}<th class="text-right {{ 'text-slate-900' if hl=='similar' }}" title="Count of look-alike units: half spec match (trim, drivetrain, powertrain, body, miles, color, year), half factory-option overlap">Similar</th><th class="text-right" title="Average share of this car's factory packages found on the store's sold units">Options match</th>{% endif %}
     <th class="text-right">Avg front</th><th class="text-right {{ 'text-slate-900' if hl=='front_hat' }}">Adj front</th>
     <th class="text-right">Avg back</th><th class="text-right {{ 'text-slate-900' if hl=='back_hat' }}">Adj back</th>
     <th class="text-right">Avg total</th><th class="text-right {{ 'text-slate-900' if hl=='total_hat' }}" title="Average total gross shrunk toward the cohort mean">Adj total</th>
@@ -34,7 +34,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
       <td>{{ s.rank if s.rank else '·' }}</td>
       <td>{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span>{% if not s.ranked %} <span class="text-xs text-slate-400">thin</span>{% endif %}</td>
       <td class="text-right {{ 'font-semibold' if hl=='n' }}">{{ s.n }}</td>
-      {% if show_similar %}<td class="text-right {{ 'font-semibold' if hl=='similar' }}">{{ s.similar|num(1) }}</td>{% endif %}
+      {% if show_similar %}<td class="text-right {{ 'font-semibold' if hl=='similar' }}">{{ s.similar|num(1) }}</td><td class="text-right text-slate-600">{{ s.opt_match|pct }}</td>{% endif %}
       <td class="text-right">{{ gross(s.front) }}</td><td class="text-right {{ 'font-semibold' if hl=='front_hat' }}">{{ gross(s.front_hat) }}</td>
       <td class="text-right">{{ gross(s.back) }}</td><td class="text-right {{ 'font-semibold' if hl=='back_hat' }}">{{ gross(s.back_hat) }}</td>
       <td class="text-right">{{ gross(s.total) }}</td><td class="text-right {{ 'font-semibold' if hl=='total_hat' }}">{{ gross(s.total_hat) }}</td>

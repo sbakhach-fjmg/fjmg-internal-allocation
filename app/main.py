@@ -332,7 +332,7 @@ def placement_export(request: Request, text: str = Form("")):
         rows.append({**base, "Matched on": rec["level"], "History n": rec["n"], "Ranked by": logic.chain})
         for _, s in t.iterrows():
             detail.append({"VIN": r["vin"], "Matched on": rec["level"], "Store": s["store_name"], "Code": s["store"], "Rank": s["rank"],
-                           "n": s["n"], "Similar": s["similar"], "Avg front": s["front"], "Adj front": s["front_hat"], "Avg back": s["back"],
+                           "n": s["n"], "Similar": s["similar"], "Options match": s["opt_match"], "Avg front": s["front"], "Adj front": s["front_hat"], "Avg back": s["back"],
                            "Adj back": s["back_hat"], "Avg total": s["total"], "Adj total": s["total_hat"], "Median days": s["days"],
                            "Adj days": s["days_hat"], "Gross / slot / yr": s["annual"], "Avg price": s["price"]})
     return _xlsx({"Placement": pd.DataFrame(rows), "Store detail": pd.DataFrame(detail)}, "placement")

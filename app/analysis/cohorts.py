@@ -56,9 +56,10 @@ CRITERIA = {
     "slot": ("Gross per slot per year", "Adj total gross × 365 / adj days to sell: what one inventory slot earns in a year. Rewards profit and turn together.",
              "annual", False),
     "days": ("Fastest turn", "Lowest adj days from receive to sold. Use when moving metal matters more than margin.", "days_hat", True),
-    "similar": ("Most similar units sold", "Which store has sold the most cars that look like this one: each sold unit scores 0–1 on matching trim, "
-                                           "drivetrain, powertrain, body, mileage band, color and year; the store total is the count of look-alikes. "
-                                           "Only meaningful on Placement / VIN pages (there is a vehicle to compare to); elsewhere falls back to volume.",
+    "similar": ("Most similar units sold", "Which store has sold the most cars that look like this one. Each sold unit scores 0–1: half for matching "
+                                           "trim, drivetrain, powertrain, body, mileage band, color and year, half for sharing the car's factory options "
+                                           "(packages). The store total is its count of look-alikes. Only meaningful on Placement / VIN pages (there is "
+                                           "a vehicle to compare to); elsewhere falls back to volume.",
                 "similar", False),
 }
 
@@ -210,22 +211,40 @@ def package_overlap(units: pd.Series, packages: list) -> pd.Series:
     return units.apply(lambda lst: len(want & {str(x).lower() for x in (lst or [])}) / len(want))
 
 
-def similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
-    """Sum over the store's units of (matching attributes / attributes known on the vehicle). Package overlap counts as one attribute."""
+PACKAGE_WEIGHT = 0.5   # share of the similarity score carried by factory-option overlap (when the vehicle has packages)
+
+
+def unit_similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[pd.Series]:
+    """Per sold unit, 0..1: how much it looks like the vehicle. Half the score is spec attributes
+    (trim, drivetrain, powertrain, body, mileage band, color, year), half is factory-option overlap."""
     if not vehicle:
         return None
     attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
     pk = vehicle.get("packages") or []
     if not attrs and not pk:
         return None
-    score = pd.Series(0.0, index=g.index)
+    spec = pd.Series(0.0, index=g.index)
     for a in attrs:
-        score += (g[a].astype(str) == str(vehicle[a])).astype(float)
-    n_attrs = len(attrs)
+        spec += (g[a].astype(str) == str(vehicle[a])).astype(float)
+    spec = spec / len(attrs) if attrs else pd.Series(0.0, index=g.index)
     if pk and "packages" in g.columns:
-        score += package_overlap(g["packages"], pk)
-        n_attrs += 1
-    return float((score / n_attrs).sum())
+        opts = package_overlap(g["packages"], pk)
+        return (1 - PACKAGE_WEIGHT) * spec + PACKAGE_WEIGHT * opts if attrs else opts
+    return spec
+
+
+def similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
+    """Count of look-alike units at the store: sum of per-unit similarity."""
+    u = unit_similarity(g, vehicle)
+    return None if u is None else float(u.sum())
+
+
+def options_match(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
+    """Average share of the vehicle's factory packages found on the store's units (0..1)."""
+    pk = (vehicle or {}).get("packages") or []
+    if not pk or "packages" not in g.columns or g.empty:
+        return None
+    return float(package_overlap(g["packages"], pk).mean())
 
 
 # ---------------------------------------------------------------- scoring
@@ -243,7 +262,7 @@ def store_table(sub: pd.DataFrame, logic: Logic = DEFAULT, vehicle: Optional[dic
                      "front_hat": _shrink(n, _mean(g["front_gross"]), pri["front"], k), "back_hat": _shrink(n, _mean(g["back_gross"]), pri["back"], k),
                      "total_hat": total_hat, "days": _median(g["days_to_sell"]), "days_hat": days_hat,
                      "annual": (total_hat or 0.0) * 365.0 / max(days_hat or pri["days"], MIN_DAYS),
-                     "similar": similarity(g, vehicle),
+                     "similar": similarity(g, vehicle), "opt_match": options_match(g, vehicle),
                      "price": _mean(g["sold_price"]), "miles": _median(g["mileage"]), "lease_share": float((g["sale_type"] == "Lease").mean()),
                      "ranked": n >= logic.min_store})
     if not rows:
