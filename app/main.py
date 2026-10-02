@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import (DATA_DIR, STORES, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
+from app.config import (DATA_DIR, STORES, APP_PASSWORD, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
                         GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS)
 from app.db import init_db, connect, db, scalar
 from app.ingest.sales import parse_sales, store_deals, ORIGIN
@@ -150,6 +150,8 @@ def healthz():
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/", error: str = ""):
+    if not APP_PASSWORD:   # no password configured (local use): nothing to sign in to
+        return RedirectResponse(url=next if next.startswith("/") else "/", status_code=303)
     return templates.TemplateResponse("login.html", {"request": request, "next": next, "error": error})
 
 
