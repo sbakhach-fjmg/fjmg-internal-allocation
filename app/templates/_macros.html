@@ -3,7 +3,7 @@
 {%- endmacro %}
 
 {% macro logic_text(logic) -%}
-Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another store takes #1 only if its adj total gross is ≥{{ (logic.over_pct*100)|int }}% and ≥{{ logic.over_abs|money }} more per unit, with ≥{{ logic.min_best }} sales){% endif %}. Adj = shrunk toward the cohort mean with K={{ logic.k|int }}. A store needs ≥{{ logic.min_store }} deals to be ranked. Change this on the Logic tab.
+Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion are tied and the next one decides.{% if logic.rank_by=='volume' %} (another store takes #1 only if its adj total gross is ≥{{ (logic.over_pct*100)|int }}% and ≥{{ logic.over_abs|money }} more per unit, with ≥{{ logic.min_best }} sales){% endif %}. Adj = shrunk toward the cohort mean with K={{ logic.k|int }}. A store needs ≥{{ logic.min_store }} deals to be ranked. Change this on the Logic tab.
 {%- endmacro %}
 
 {% macro info(text) -%}

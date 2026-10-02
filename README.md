@@ -24,10 +24,12 @@ Separate from every other FJ tool: its own code, database, MarketCheck cache and
    - **Ranking rule**: the store that has sold the most of that car is #1, and the rest follow in volume
      order. Another store takes #1 only when its adj gross per unit beats the volume leader's by at least
      `GROSS_OVERRIDE_PCT` (75%) *and* `GROSS_OVERRIDE_ABS` ($2,000), with at least `MIN_N_BEST` (5) sales of its own.
-4. **Logic tab** — the user picks what decides #1 for a car (remembered per browser): most units sold
-   (default, with the gross override), best total / front / back gross, gross per slot per year, fastest
-   turn, or most similar units sold (attribute overlap with the vehicle being placed). Thresholds (min
-   deals, shrinkage K, override margins) are editable there too. The page also documents every formula.
+4. **Logic tab** — the user puts the criteria in priority order (remembered per browser): most units sold
+   (default first, with the gross override), best total / front / back gross, gross per slot per year,
+   fastest turn, most similar units sold (attribute + package overlap with the vehicle being placed).
+   The first criterion decides; stores within the tie band on it (units within 15%, gross within $500,
+   days within 5) count as tied and the next criterion breaks the tie, and so on. Tie bands, min deals,
+   shrinkage K and override margins are editable there too. The page also documents every formula.
 5. **Place** this week's list: each VIN is decoded, matched to the most specific cohort with enough
    history (`MIN_N_COHORT` deals, `MIN_N_STORE` at a store), and the stores are ranked. Export to Excel.
 

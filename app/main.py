@@ -322,7 +322,7 @@ def placement_export(request: Request, text: str = Form("")):
             base[f"#{i} n"] = s["n"]
             base[f"#{i} adj total"] = round(s["total_hat"])
             base[f"#{i} adj days"] = round(s["days_hat"])
-        rows.append({**base, "Matched on": rec["level"], "History n": rec["n"], "Ranked by": logic.label})
+        rows.append({**base, "Matched on": rec["level"], "History n": rec["n"], "Ranked by": logic.chain})
         for _, s in t.iterrows():
             detail.append({"VIN": r["vin"], "Matched on": rec["level"], "Store": s["store_name"], "Code": s["store"], "Rank": s["rank"],
                            "n": s["n"], "Similar": s["similar"], "Avg front": s["front"], "Adj front": s["front_hat"], "Avg back": s["back"],
@@ -340,11 +340,12 @@ def logic_page(request: Request):
 @app.post("/logic")
 async def logic_save(request: Request):
     form = await request.form()
-    d = {k: form.get(k) for k in ("rank_by", "k", "min_store", "min_best", "min_cohort", "over_abs")}
-    try:
-        d["over_pct"] = float(form.get("over_pct") or 0) / 100.0
-    except ValueError:
-        d["over_pct"] = None
+    d = {k: form.get(k) for k in ("order", "k", "min_store", "min_best", "min_cohort", "over_abs", "tie_gross", "tie_days")}
+    for pct_field, target in (("over_pct", "over_pct"), ("tie_units_pct", "tie_units_pct"), ("tie_rel", "tie_rel")):
+        try:
+            d[target] = float(form.get(pct_field) or 0) / 100.0
+        except ValueError:
+            d[target] = None
     logic = Logic.from_dict(d)
     resp = RedirectResponse(url="/logic?msg=Saved.+Ranking+by+" + logic.label.replace(" ", "+"), status_code=303)
     resp.set_cookie(LOGIC_COOKIE, json.dumps(logic.to_dict()), max_age=365 * 24 * 3600, samesite="lax")
@@ -459,7 +460,7 @@ def export_all(request: Request, make: str = "all"):
     sheets = {"Stores": ov, "Model x Store": mx(["make", "model"]), "Trim x Store": mx(["make", "model", "trim"]),
               "Year Model x Store": mx(["year", "make", "model"]), "Miles x Store": mx(["make", "model", "mileage_band"]),
               "Spec x Store": mx(["make", "model", "spec"]),
-              "Logic": pd.DataFrame([{"Setting": k, "Value": v} for k, v in {**logic.to_dict(), "criterion": logic.label}.items()])}
+              "Logic": pd.DataFrame([{"Setting": k, "Value": str(v)} for k, v in {**logic.to_dict(), "priority": logic.chain}.items()])}
     cols = ["dealer_code", "deal_number", "sale_type", "sold_date", "receive_date", "days_to_sell", "vin", "stock_no", "year", "make", "model", "trim",
             "body", "spec", "mileage", "mileage_band", "ext_base", "sold_price", "net_cost", "front_gross", "back_gross", "total_gross", "origin_code", "decoded"]
     sheets["Deals"] = df[[c for c in cols if c in df.columns]]

@@ -63,41 +63,68 @@ CRITERIA = {
 }
 
 
+DEFAULT_ORDER = ["volume", "total", "front", "back", "slot", "days", "similar"]
+
+
 @dataclass
 class Logic:
-    rank_by: str = "volume"
+    """User-chosen ranking logic. `order` is the criteria priority list: the first decides; stores that are
+    within the tie band on it are treated as tied and the next criterion breaks the tie, and so on."""
+    order: list = None
     k: float = PRIOR_K
     min_store: int = MIN_N_STORE
     min_best: int = MIN_N_BEST
     min_cohort: int = MIN_N_COHORT
     over_pct: float = GROSS_OVERRIDE_PCT
     over_abs: float = GROSS_OVERRIDE_ABS
+    tie_units_pct: float = 0.15     # units sold within 15% of each other = tied
+    tie_gross: float = 500.0        # adj gross figures within $500 = tied
+    tie_days: float = 5.0           # adj days within 5 = tied
+    tie_rel: float = 0.15           # gross/slot/yr and similarity within 15% = tied
+
+    def __post_init__(self):
+        if not self.order:
+            self.order = list(DEFAULT_ORDER)
 
     @classmethod
     def from_dict(cls, d: Optional[dict]) -> "Logic":
         base = cls()
         if not d:
             return base
-        for f, caster in (("rank_by", str), ("k", float), ("min_store", int), ("min_best", int), ("min_cohort", int), ("over_pct", float), ("over_abs", float)):
+        for f, caster in (("k", float), ("min_store", int), ("min_best", int), ("min_cohort", int), ("over_pct", float), ("over_abs", float),
+                          ("tie_units_pct", float), ("tie_gross", float), ("tie_days", float), ("tie_rel", float)):
             if d.get(f) not in (None, ""):
                 try:
-                    setattr(base, f, caster(d[f]))
+                    setattr(base, f, max(0.0, caster(d[f])))
                 except (TypeError, ValueError):
                     pass
-        if base.rank_by not in CRITERIA:
-            base.rank_by = "volume"
-        base.k = max(0.0, base.k)
-        base.min_store = max(1, base.min_store)
-        base.min_best = max(1, base.min_best)
-        base.min_cohort = max(1, base.min_cohort)
+        order = d.get("order") or ([d["rank_by"]] if d.get("rank_by") else [])
+        if isinstance(order, str):
+            order = [x.strip() for x in order.split(",")]
+        seen = []
+        for c in order:
+            if c in CRITERIA and c not in seen:
+                seen.append(c)
+        base.order = seen + [c for c in DEFAULT_ORDER if c not in seen]
+        base.min_store = max(1, int(base.min_store))
+        base.min_best = max(1, int(base.min_best))
+        base.min_cohort = max(1, int(base.min_cohort))
         return base
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @property
+    def rank_by(self) -> str:
+        return self.order[0]
+
+    @property
     def label(self) -> str:
-        return CRITERIA[self.rank_by][0]
+        return CRITERIA[self.order[0]][0]
+
+    @property
+    def chain(self) -> str:
+        return " → ".join(CRITERIA[c][0] for c in self.order)
 
 
 DEFAULT = Logic()
@@ -229,28 +256,68 @@ def gross_overrides(challenger: dict, incumbent: dict, logic: Logic) -> bool:
     return c >= i * (1.0 + logic.over_pct)
 
 
-def _rank(rows: list, logic: Logic) -> list:
-    by_volume = sorted(rows, key=lambda r: (-r["n"], -(r["total_hat"] or 0)))
-    crit = logic.rank_by
-    if crit == "similar" and not any(r.get("similar") is not None for r in rows):
-        crit = "volume"
+def _val(r: dict, col: str):
+    v = r.get(col)
+    if v is None or (isinstance(v, float) and math.isnan(v)):
+        return None
+    return float(v)
+
+
+def _tied(crit: str, a, b, logic: Logic) -> bool:
+    """Are two values on `crit` close enough to count as a tie (so the next criterion decides)?"""
+    if a is None or b is None:
+        return False
     if crit == "volume":
-        if len(by_volume) < 2:
-            return by_volume
-        leader = by_volume[0]
-        challengers = [r for r in by_volume[1:] if gross_overrides(r, leader, logic)]
-        if challengers:
-            top = max(challengers, key=lambda r: r["total_hat"] or 0)
-            return [top] + [r for r in by_volume if r is not top]
-        return by_volume
+        return abs(a - b) <= logic.tie_units_pct * max(a, b)
+    if crit in ("total", "front", "back"):
+        return abs(a - b) <= logic.tie_gross
+    if crit == "days":
+        return abs(a - b) <= logic.tie_days
+    return abs(a - b) <= logic.tie_rel * max(abs(a), abs(b))
+
+
+def _tier_sort(rows: list, order: list, logic: Logic) -> list:
+    if len(rows) < 2:
+        return list(rows)
+    if not order:
+        return sorted(rows, key=lambda r: (-r["n"], -(r["total_hat"] or 0)))
+    crit = order[0]
     col, asc = CRITERIA[crit][2], CRITERIA[crit][3]
 
     def key(r):
-        v = r.get(col)
-        if v is None or (isinstance(v, float) and math.isnan(v)):
-            v = float("inf") if asc else float("-inf")
-        return (v if asc else -v, -r["n"])
-    return sorted(rows, key=key)
+        v = _val(r, col)
+        if v is None:
+            return (1, 0.0, -r["n"])
+        return (0, v if asc else -v, -r["n"])
+    ordered = sorted(rows, key=key)
+    tiers, cur = [], []
+    for r in ordered:
+        if cur and _tied(crit, _val(cur[0], col), _val(r, col), logic):
+            cur.append(r)
+        else:
+            if cur:
+                tiers.append(cur)
+            cur = [r]
+    if cur:
+        tiers.append(cur)
+    out = []
+    for t in tiers:
+        out += _tier_sort(t, order[1:], logic) if len(t) > 1 else t
+    return out
+
+
+def _rank(rows: list, logic: Logic) -> list:
+    """Priority-ordered ranking. 'Most similar units' is skipped when there is no vehicle to compare to."""
+    have_similar = any(r.get("similar") is not None for r in rows)
+    order = [c for c in logic.order if c != "similar" or have_similar]
+    ranked = _tier_sort(rows, order, logic)
+    if order and order[0] == "volume" and len(ranked) >= 2:          # Nick's rule: gross override on the #1 slot
+        leader = ranked[0]
+        challengers = [r for r in ranked[1:] if gross_overrides(r, leader, logic)]
+        if challengers:
+            top = max(challengers, key=lambda r: r["total_hat"] or 0)
+            ranked = [top] + [r for r in ranked if r is not top]
+    return ranked
 
 
 def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Optional[dict]:

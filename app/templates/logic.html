@@ -2,27 +2,42 @@
 {% block title %}Logic · FJ Internal Allocation{% endblock %}
 {% block body %}
 <h1 class="text-2xl font-semibold mb-1">Logic</h1>
-<p class="text-sm text-slate-500 mb-5">Choose what decides the #1 store for a car. Your choice is remembered in this browser and applies to the Stores, Models, Placement and VIN pages and the Excel exports. Data is always used retail + lease deals from active stores within the rolling {{ANALYSIS_MONTHS}}-month window.</p>
+<p class="text-sm text-slate-500 mb-5">Put the criteria in priority order to decide the #1 store for a car. Your choice is remembered in this browser and applies to the Stores, Models, Placement and VIN pages and the Excel exports. Data is always used retail + lease deals from active stores within the rolling {{ANALYSIS_MONTHS}}-month window.</p>
 
-<form method="post" action="/logic" class="grid lg:grid-cols-3 gap-6">
-  <div class="lg:col-span-2 space-y-2">
-    {% for key, (label, desc, col, asc) in CRITERIA.items() %}
-    <label class="flex gap-3 rounded border border-slate-200 bg-white p-4 cursor-pointer {{ 'ring-2 ring-fj' if logic.rank_by==key }}">
-      <input type="radio" name="rank_by" value="{{key}}" {{ 'checked' if logic.rank_by==key }} class="mt-1">
-      <div><div class="font-medium">{{label}}{% if key=='volume' %} <span class="text-xs text-fj">default</span>{% endif %}</div>
-        <div class="text-sm text-slate-600">{{desc}}</div></div>
-    </label>
+<form method="post" action="/logic" class="grid lg:grid-cols-3 gap-6" onsubmit="document.getElementById('orderInput').value=[...document.querySelectorAll('#crit li')].map(li=>li.dataset.key).join(',')">
+  <div class="lg:col-span-2">
+    <div class="text-sm text-slate-600 mb-2">Priority order. The first criterion decides; stores that are within the tie band on it count as tied and the next criterion breaks the tie, and so on. Use the arrows to reorder.</div>
+    <input type="hidden" name="order" id="orderInput" value="{{ logic.order|join(',') }}">
+    <ol id="crit" class="space-y-2">
+    {% for key in logic.order %}{% set label, desc, col, asc = CRITERIA[key] %}
+      <li data-key="{{key}}" class="flex gap-3 rounded border border-slate-200 bg-white p-4 {{ 'ring-2 ring-fj' if loop.first }}">
+        <div class="flex flex-col items-center gap-1 pt-0.5">
+          <button type="button" onclick="move(this,-1)" class="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-fj-light hover:text-fj-dark text-xs leading-none" title="Move up">▲</button>
+          <span class="num text-xs font-semibold text-fj w-6 text-center">{{ loop.index }}</span>
+          <button type="button" onclick="move(this,1)" class="w-6 h-6 rounded border border-slate-200 text-slate-500 hover:bg-fj-light hover:text-fj-dark text-xs leading-none" title="Move down">▼</button>
+        </div>
+        <div><div class="font-medium">{{label}}{% if loop.first %} <span class="tag text-xs text-fj">most important</span>{% endif %}</div>
+          <div class="text-sm text-slate-600">{{desc}}</div></div>
+      </li>
     {% endfor %}
+    </ol>
   </div>
 
   <div class="space-y-4">
+    <div class="rounded border border-slate-200 bg-white p-4 text-sm space-y-3">
+      <div class="font-medium">Tie bands <span class="text-slate-400 font-normal">(when stores count as tied on a criterion)</span></div>
+      <label class="block">Units sold within <input name="tie_units_pct" type="number" min="0" step="5" value="{{(logic.tie_units_pct*100)|int}}" class="border rounded px-2 py-1 w-20"> % of each other</label>
+      <label class="block">Gross figures within $<input name="tie_gross" type="number" min="0" step="50" value="{{logic.tie_gross|int}}" class="border rounded px-2 py-1 w-24"> per unit</label>
+      <label class="block">Days to sell within <input name="tie_days" type="number" min="0" step="1" value="{{logic.tie_days|int}}" class="border rounded px-2 py-1 w-20"> days</label>
+      <label class="block">Gross/slot/yr and similarity within <input name="tie_rel" type="number" min="0" step="5" value="{{(logic.tie_rel*100)|int}}" class="border rounded px-2 py-1 w-20"> %</label>
+    </div>
     <div class="rounded border border-slate-200 bg-white p-4 text-sm space-y-3">
       <div class="font-medium">Thresholds</div>
       <label class="block">Min deals for a store to be ranked<br><input name="min_store" type="number" min="1" value="{{logic.min_store}}" class="border rounded px-2 py-1 w-24"></label>
       <label class="block">Min deals for a cohort level to be trusted (Placement)<br><input name="min_cohort" type="number" min="1" value="{{logic.min_cohort}}" class="border rounded px-2 py-1 w-24"></label>
       <label class="block">Shrinkage weight K <span class="text-slate-400">(a store with K deals is weighted 50/50 with the cohort mean)</span><br><input name="k" type="number" min="0" step="1" value="{{logic.k|int}}" class="border rounded px-2 py-1 w-24"></label>
-      <div class="font-medium pt-2">Gross override (used by "Most units sold")</div>
-      <label class="block">Challenger must beat the leader's adj total gross by at least<br><input name="over_pct" type="number" min="0" step="5" value="{{(logic.over_pct*100)|int}}" class="border rounded px-2 py-1 w-24"> %</label>
+      <div class="font-medium pt-2">Gross override <span class="text-slate-400 font-normal">(when "Most units sold" is first)</span></div>
+      <label class="block">Another store takes #1 if its adj total gross beats the leader's by at least<br><input name="over_pct" type="number" min="0" step="5" value="{{(logic.over_pct*100)|int}}" class="border rounded px-2 py-1 w-24"> %</label>
       <label class="block">…and by at least $<input name="over_abs" type="number" min="0" step="100" value="{{logic.over_abs|int}}" class="border rounded px-2 py-1 w-28"> per unit</label>
       <label class="block">…with at least <input name="min_best" type="number" min="1" value="{{logic.min_best}}" class="border rounded px-2 py-1 w-20"> sales of its own</label>
     </div>
@@ -30,6 +45,21 @@
     <a href="/logic/reset" class="ml-3 text-sm text-slate-500 hover:underline">Reset to defaults</a>
   </div>
 </form>
+<script>
+function move(btn, dir){
+  const li = btn.closest('li'), ol = li.parentElement;
+  const sib = dir < 0 ? li.previousElementSibling : li.nextElementSibling;
+  if (!sib) return;
+  dir < 0 ? ol.insertBefore(li, sib) : ol.insertBefore(sib, li);
+  [...ol.children].forEach((el, i) => {
+    el.querySelector('.num').textContent = i + 1;
+    el.classList.toggle('ring-2', i === 0); el.classList.toggle('ring-fj', i === 0);
+    let tag = el.querySelector('.tag');
+    if (i === 0 && !tag) { tag = document.createElement('span'); tag.className = 'tag text-xs text-fj'; tag.textContent = ' most important'; el.querySelector('.font-medium').appendChild(tag); }
+    if (i !== 0 && tag) tag.remove();
+  });
+}
+</script>
 
 <h2 class="text-lg font-semibold mt-10 mb-2">How the numbers are built</h2>
 <div class="grid md:grid-cols-2 gap-4 text-sm">

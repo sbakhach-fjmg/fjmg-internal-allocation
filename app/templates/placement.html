@@ -21,7 +21,7 @@
     </details>
 
     <div class="flex items-center justify-between">
-      <span class="text-xs text-slate-500">Ranking by <b>{{ logic.label }}</b> · <a href="/logic" class="text-fj hover:underline">Logic</a></span>
+      <span class="text-xs text-slate-500 truncate max-w-md" title="{{ logic.chain }}">Priority: <b>{{ logic.chain }}</b> · <a href="/logic" class="text-fj hover:underline">Logic</a></span>
       <button class="bg-fj hover:bg-fj-dark text-white font-medium rounded-lg px-8 py-2.5 text-base shadow-sm">Run</button>
     </div>
   </form>
