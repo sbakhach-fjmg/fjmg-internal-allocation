@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import gross, matrix_table, logic_text, info %}
 {% block title %}Models · FJ Internal Allocation{% endblock %}
 {% block body %}
-<h1 class="text-2xl font-semibold mb-4">What sells best where {{ info("Each row is a cohort; each store cell shows units sold · average total gross · median days to sell. Blue = #1 store for that cohort. Click a model for year / trim / mileage / spec breakdowns. " ~ logic_text(logic)) }}</h1>
+<h1 class="text-2xl font-semibold mb-4">What sells best where {{ info("Each row is a cohort with its group-wide figures and the #1 store. Click a row to open the per-store breakdown; click a model name for year / trim / mileage / spec / package breakdowns. " ~ logic_text(logic)) }}</h1>
 
 <form class="flex flex-wrap items-end gap-3 mb-4 text-sm">
   <label>Year<br><select name="year" class="border rounded px-2 py-1"><option value="all">All years</option>{% for y in years %}<option value="{{y}}" {{ 'selected' if year|string==y|string }}>{{y}}</option>{% endfor %}</select></label>

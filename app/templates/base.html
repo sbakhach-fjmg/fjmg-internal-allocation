@@ -33,4 +33,12 @@
   {% if flash %}<div class="mb-4 rounded border border-fj-mid bg-fj-light text-fj-dark px-4 py-2 text-sm">{{flash}}</div>{% endif %}
   {% block body %}{% endblock %}
 </main>
+<script>
+function toggleRow(id, row){
+  const d = document.getElementById(id), c = row.querySelector('.chev');
+  const open = !d.classList.toggle('hidden');
+  if (c) c.style.transform = open ? 'rotate(90deg)' : '';
+  row.classList.toggle('bg-fj-light', open);
+}
+</script>
 </body></html>

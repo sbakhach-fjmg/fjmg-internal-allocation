@@ -15,8 +15,8 @@
   </tr></thead>
   <tbody>
   {% for s in stores %}
-  <tr class="cursor-pointer select-none" onclick="toggleStore('{{ s.store }}', this)">
-    <td class="text-fj text-xs"><span class="inline-block transition-transform" id="chev-{{ s.store }}">▶</span></td>
+  <tr class="cursor-pointer select-none" onclick="toggleRow('store-{{ s.store }}', this)">
+    <td class="text-fj text-xs"><span class="chev inline-block transition-transform">▶</span></td>
     <td class="font-medium">{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span></td>
     <td class="text-right">{{ s.n }}</td>
     <td class="text-right">{{ gross(s.front) }}</td><td class="text-right">{{ gross(s.back) }}</td><td class="text-right font-medium">{{ gross(s.total) }}</td>
@@ -62,12 +62,4 @@
   </tbody>
 </table>
 </div>
-<script>
-function toggleStore(code, row){
-  const d = document.getElementById('store-'+code), c = document.getElementById('chev-'+code);
-  const open = d.classList.toggle('hidden');
-  c.style.transform = open ? '' : 'rotate(90deg)';
-  row.classList.toggle('bg-fj-light', !open);
-}
-</script>
 {% endblock %}

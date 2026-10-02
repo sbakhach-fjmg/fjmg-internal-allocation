@@ -314,7 +314,8 @@ def matrix(df: pd.DataFrame, keys: list, min_n: int = 3, filters: Optional[dict]
         cells = {r["store"]: r for r in t.to_dict(orient="records")}
         rows.append({"key": dict(zip(keys, key)), "label": " · ".join(str(k) for k in key), "n": n,
                      "total": _mean(g["total_gross"]), "front": _mean(g["front_gross"]), "back": _mean(g["back_gross"]),
-                     "days": _median(g["days_to_sell"]), "price": _mean(g["sold_price"]), "best": best, "cells": cells})
+                     "days": _median(g["days_to_sell"]), "price": _mean(g["sold_price"]), "best": best, "cells": cells,
+                     "ranking": t.to_dict(orient="records")})
     if keys == ["mileage_band"]:
         rows.sort(key=lambda x: BAND_ORDER.index(x["label"]) if x["label"] in BAND_ORDER else 99)
     elif keys == ["year"]:
