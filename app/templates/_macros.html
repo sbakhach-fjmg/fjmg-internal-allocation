@@ -68,7 +68,7 @@ Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another sto
       <td class="text-right">{{ r.n }}</td>
       <td class="text-right">{{ gross(r.front) }}</td><td class="text-right">{{ gross(r.back) }}</td><td class="text-right">{{ gross(r.total) }}</td><td class="text-right">{{ r.days|num }}</td>
       <td class="text-right text-slate-500">{{ r.ranking|length }}</td>
-      <td>{% if r.best %}<span class="font-medium">{{ r.best.store_name }}</span> <span class="text-xs text-slate-500">{{ r.best.n }} · {{ gross(r.best.total_hat) }} · {{ r.best.days_hat|num }}d</span>{% else %}<span class="text-slate-400">–</span>{% endif %}</td>
+      <td>{% if r.best %}<span class="font-medium" title="{{ r.best.store_name }}">{{ r.best.store }}</span> <span class="text-xs text-slate-500">{{ r.best.n }} · {{ gross(r.best.total_hat) }} · {{ r.best.days_hat|num }}d</span>{% else %}<span class="text-slate-400">–</span>{% endif %}</td>
     </tr>
     <tr id="{{ rid }}" class="hidden bg-slate-50">
       <td></td>
