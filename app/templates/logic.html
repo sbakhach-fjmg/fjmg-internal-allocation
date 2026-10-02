@@ -83,7 +83,7 @@ function move(btn, dir){
     <div class="font-medium pt-2">Spec</div>
     <p>Every VIN is decoded once with MarketCheck NeoVIN and cached: model, trim, body, drivetrain, powertrain, exterior color, MSRP. Year and make come from Advent. Mileage bands: 0-10k · 10-20k · 20-35k · 35-50k · 50-75k · 75-100k · 100k+. Spec = drivetrain · powertrain.</p>
     <div class="font-medium pt-2">Matching (Placement)</div>
-    <p>A VIN is matched as closely as possible — year, make, model, trim, spec, mileage band and factory options — then one thing is relaxed at a time until a level has at least the cohort minimum of deals. Options match when a sold unit carries at least half of the incoming car's packages. Order:</p>
+    <p>A VIN is matched as closely as possible — year, make, model, trim, spec, mileage band and factory options — then one thing is relaxed at a time until a level has at least the cohort minimum of deals. Options match when a sold unit carries every key package family the car has (AMG Line, Night, Premium, Driver Assistance, Exclusive, Pinnacle, M Sport, Shadowline, Executive, Black Optic, S Sport, Sport Chrono, TRD, F Sport, Technology); a car with only minor packages needs half of them matched. Options are kept while miles, spec and year are relaxed, then dropped. Order:</p>
     <ol class="list-decimal ml-5">{% for label, keys, opts in LEVELS %}<li>{{label}}</li>{% endfor %}</ol>
   </div>
   <div class="rounded border border-slate-200 bg-white p-4 space-y-2">

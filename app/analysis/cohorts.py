@@ -21,6 +21,7 @@ The recommender walks LEVELS from specific to broad and stops at the first level
 from __future__ import annotations
 import json
 import math
+import re
 from dataclasses import dataclass, asdict
 from typing import Optional
 import pandas as pd
@@ -31,6 +32,9 @@ from app.decode.taxonomy import canonical, UNKNOWN, BAND_ORDER
 # (label, taxonomy keys that must match exactly, require package overlap?)
 LEVELS = [
     ("Year · Model · Trim · Spec · Miles · Options", ["year", "make", "model", "trim", "spec", "mileage_band"], True),
+    ("Year · Model · Trim · Spec · Options", ["year", "make", "model", "trim", "spec"], True),
+    ("Year · Model · Trim · Options", ["year", "make", "model", "trim"], True),
+    ("Model · Trim · Options (any year)", ["make", "model", "trim"], True),
     ("Year · Model · Trim · Spec · Miles", ["year", "make", "model", "trim", "spec", "mileage_band"], False),
     ("Year · Model · Trim · Spec", ["year", "make", "model", "trim", "spec"], False),
     ("Year · Model · Trim", ["year", "make", "model", "trim"], False),
@@ -40,7 +44,46 @@ LEVELS = [
     ("Make · Body", ["make", "body"], False),
     ("Make", ["make"], False),
 ]
-PACKAGE_MATCH_SHARE = 0.5   # a sold unit "matches on options" if it carries at least this share of the incoming car's packages
+PACKAGE_MATCH_SHARE = 0.5   # with no key packages: a sold unit "matches on options" if it carries at least this share of the car's packages
+KEY_PACKAGE_WEIGHT = 3.0    # a key package counts this many times a minor one in the similarity score
+
+# Key package families: (family label, regex on the package name). Spelling variants collapse into one family,
+# e.g. "AMG Line", "AMG Line Exterior Package" and "AMG Line w/Night Package" are all the AMG Line family.
+KEY_PACKAGES = [
+    ("AMG Line", re.compile(r"\bAMG\s*Line\b", re.I)),
+    ("Night", re.compile(r"\bNight\b", re.I)),
+    ("Premium", re.compile(r"\bPremium\s*(Package|Pkg|Plus)", re.I)),
+    ("Driver Assistance", re.compile(r"\bDriv(er|ing)\s*Assist", re.I)),
+    ("Exclusive", re.compile(r"\bExclusive\b", re.I)),
+    ("Pinnacle", re.compile(r"\bPinnacle\b", re.I)),
+    ("M Sport", re.compile(r"\bM\s*Sport\b", re.I)),
+    ("Shadowline", re.compile(r"\bShadow\s*line\b", re.I)),
+    ("Executive", re.compile(r"\bExecutive\b", re.I)),
+    ("Black Optic", re.compile(r"\bBlack\s*Optic", re.I)),
+    ("S Sport", re.compile(r"\bS\s*(Sport|line)\b", re.I)),
+    ("Sport Chrono", re.compile(r"\bSport\s*Chrono\b", re.I)),
+    ("TRD", re.compile(r"\bTRD\b", re.I)),
+    ("F Sport", re.compile(r"\bF\s*SPORT\b", re.I)),
+    ("Technology", re.compile(r"\bTechnology\s*(Package|Pkg)", re.I)),
+]
+_ACCESSORY = re.compile(r"\(PIO\)|floor|mat\b|cargo|wheel lock|key glove|smoking|storage package", re.I)
+
+
+def key_families(packages) -> list:
+    """Key package families present in a list of package names (deduped, in KEY_PACKAGES order)."""
+    names = [str(x) for x in (packages or [])]
+    return [fam for fam, rx in KEY_PACKAGES if any(rx.search(n) for n in names)]
+
+
+def minor_packages(packages) -> list:
+    """Package names that are neither a key family nor an accessory."""
+    out = []
+    for n in (packages or []):
+        n = str(n)
+        if _ACCESSORY.search(n) or any(rx.search(n) for _, rx in KEY_PACKAGES):
+            continue
+        out.append(n)
+    return out
 SPEC_KEYS = ["year", "make", "model", "trim", "version", "body_type", "vehicle_type", "drivetrain", "powertrain_type", "ext_base", "msrp", "error", "packages"]
 SIM_ATTRS = ["trim", "drivetrain", "powertrain", "body", "mileage_band", "ext_base", "year"]
 
@@ -167,6 +210,7 @@ def load_frame(con) -> pd.DataFrame:
     df = df.rename(columns={"year": "adv_year", "make": "adv_make", "model": "adv_model"})
     df = pd.concat([df.reset_index(drop=True), pd.DataFrame(canon)], axis=1)
     df["packages"] = [json.loads(v) if isinstance(v, str) and v.startswith("[") else [] for v in df["s_packages"]]
+    df["key_pkgs"] = [key_families(p) for p in df["packages"]]
     df["sold"] = pd.to_datetime(df["sold_date"], errors="coerce")
     df["month"] = df["sold"].dt.to_period("M").astype(str)
     df["store_name"] = df["dealer_code"].map(store_name)
@@ -204,11 +248,30 @@ def store_order(df: pd.DataFrame) -> list:
 
 
 def package_overlap(units: pd.Series, packages: list) -> pd.Series:
-    """Share of the vehicle's packages present on each sold unit (0..1)."""
-    want = {str(x).lower() for x in (packages or [])}
-    if not want:
+    """Weighted share of the vehicle's packages present on each sold unit (0..1). Key families (AMG Line, Night,
+    Premium, ...) weigh KEY_PACKAGE_WEIGHT each; other non-accessory packages weigh 1; accessories are ignored."""
+    fams = key_families(packages)
+    minors = {m.lower() for m in minor_packages(packages)}
+    total = KEY_PACKAGE_WEIGHT * len(fams) + len(minors)
+    if total == 0:
         return pd.Series(0.0, index=units.index)
-    return units.apply(lambda lst: len(want & {str(x).lower() for x in (lst or [])}) / len(want))
+
+    def score(lst):
+        lst = lst or []
+        have_f = set(key_families(lst))
+        have_m = {str(x).lower() for x in lst}
+        return (KEY_PACKAGE_WEIGHT * len(have_f & set(fams)) + len(minors & have_m)) / total
+    return units.apply(score)
+
+
+def options_filter(units: pd.Series, packages: list) -> pd.Series:
+    """Which sold units count as an options match for the Placement levels: every key family of the car must be
+    present; with no key families, at least PACKAGE_MATCH_SHARE of its (non-accessory) packages."""
+    fams = key_families(packages)
+    if fams:
+        want = set(fams)
+        return units.apply(lambda lst: want <= set(key_families(lst)))
+    return package_overlap(units, packages) >= PACKAGE_MATCH_SHARE
 
 
 PACKAGE_WEIGHT = 0.5   # share of the similarity score carried by factory-option overlap (when the vehicle has packages)
@@ -221,6 +284,8 @@ def unit_similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[pd.Ser
         return None
     attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
     pk = vehicle.get("packages") or []
+    if not (key_families(pk) or minor_packages(pk)):
+        pk = []
     if not attrs and not pk:
         return None
     spec = pd.Series(0.0, index=g.index)
@@ -250,15 +315,20 @@ def sim_detail(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[dict]:
         return None
     attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
     pk = vehicle.get("packages") or []
+    if not (key_families(pk) or minor_packages(pk)):
+        pk = []
     if not attrs and not pk:
         return None
     out = {"n": int(len(g)), "attrs": [], "packages": [], "spec_weight": (1 - PACKAGE_WEIGHT) if pk else 1.0, "pkg_weight": PACKAGE_WEIGHT if pk else 0.0}
     for a in attrs:
         out["attrs"].append({"label": SIM_LABELS.get(a, a), "value": vehicle[a], "matched": int((g[a].astype(str) == str(vehicle[a])).sum())})
     if pk and "packages" in g.columns:
-        for name in pk:
+        for fam in key_families(pk):
+            cnt = int(g["key_pkgs"].apply(lambda fs: fam in fs).sum())
+            out["packages"].append({"name": fam, "matched": cnt, "key": True})
+        for name in minor_packages(pk):
             cnt = int(g["packages"].apply(lambda lst: any(str(x).lower() == str(name).lower() for x in (lst or []))).sum())
-            out["packages"].append({"name": name, "matched": cnt})
+            out["packages"].append({"name": name, "matched": cnt, "key": False})
     return out
 
 
@@ -380,8 +450,9 @@ def _rank(rows: list, logic: Logic) -> list:
 def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Optional[dict]:
     """Walk LEVELS from specific to broad; return the first level with enough history."""
     pk = vehicle.get("packages") or []
+    usable = bool(key_families(pk) or minor_packages(pk))
     for label, keys, need_options in LEVELS:
-        if need_options and not pk:
+        if need_options and not usable:
             continue
         if any(vehicle.get(k) in (None, UNKNOWN, 0, "", "0") for k in keys):
             continue
@@ -389,7 +460,7 @@ def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Opti
         for k in keys:
             mask &= df[k].astype(str) == str(vehicle[k])
         if need_options:
-            mask &= package_overlap(df["packages"], pk) >= PACKAGE_MATCH_SHARE
+            mask &= options_filter(df["packages"], pk)
         sub = df[mask]
         if len(sub) < logic.min_cohort:
             continue
@@ -398,7 +469,8 @@ def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Opti
             continue
         match = {k: vehicle[k] for k in keys}
         if need_options:
-            match["options"] = f"≥{int(PACKAGE_MATCH_SHARE * 100)}% of: " + ", ".join(pk)
+            fams = key_families(pk)
+            match["options"] = ("has " + " + ".join(fams)) if fams else f"≥{int(PACKAGE_MATCH_SHARE * 100)}% of: " + ", ".join(pk)
         return {"level": label, "match": match, "n": len(sub), "table": t, "best": t.iloc[0].to_dict(), "deals": sub}
     return None
 
@@ -485,4 +557,5 @@ def vehicle_from_spec(spec: dict, mileage=None, year=None, make=None) -> dict:
         raw = (spec or {}).get("packages")
         pk = json.loads(raw) if isinstance(raw, str) and raw.startswith("[") else []
     veh["packages"] = pk
+    veh["key_pkgs"] = key_families(pk)
     return veh

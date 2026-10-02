@@ -31,7 +31,8 @@ Separate from every other FJ tool: its own code, database, MarketCheck cache and
    The first criterion decides; stores within the tie band on it (units within 15%, gross within $500,
    days within 5) count as tied and the next criterion breaks the tie, and so on. Tie bands, min deals,
    shrinkage K and override margins are editable there too. The page also documents every formula.
-5. **Place** this week's list: each VIN is decoded, matched to the most specific cohort with enough
+5. **Place** this week's list (key packages such as AMG Line / Night / Premium must match first; options are
+   kept while miles, spec and year are relaxed, then dropped): each VIN is decoded, matched to the most specific cohort with enough
    history (`MIN_N_COHORT` deals, `MIN_N_STORE` at a store), and the stores are ranked. Export to Excel.
 
 Pages (in nav order): **Placement** (home) · **Models** (cohort × store matrix, filter by year / make /

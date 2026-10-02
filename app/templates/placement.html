@@ -3,7 +3,7 @@
 {% block body %}
 <div class="max-w-3xl mx-auto {{ 'mb-6' if results is not none else 'mt-10 mb-10' }}">
   <div class="text-center mb-6">
-    <h1 class="text-3xl font-semibold tracking-tight">Internal Allocator {{ info("Upload this week's list (xlsx or csv with VIN and Mileage columns) or paste VINs. Each VIN is decoded through MarketCheck and matched as closely as possible on year · model · trim · spec · miles · options, then one thing is relaxed at a time (options → miles → spec → year → trim → model → body → make) until a level has ≥" ~ logic.min_cohort ~ " deals. " ~ logic_text(logic)) }}</h1>
+    <h1 class="text-3xl font-semibold tracking-tight">Internal Allocator {{ info("Upload this week's list (xlsx or csv with VIN and Mileage columns) or paste VINs. Each VIN is decoded through MarketCheck and matched as closely as possible on year · model · trim · spec · miles · options. Options means the car's key packages (AMG Line, Night, Premium, Driver Assistance, M Sport, Black Optic, ...) must all be on the sold unit. Miles, spec and year are relaxed first while keeping options, then options are dropped and the chain repeats, down to model, body and make, until a level has ≥" ~ logic.min_cohort ~ " deals. " ~ logic_text(logic)) }}</h1>
     <p class="text-slate-500 mt-1">Which store should each incoming vehicle go to?</p>
   </div>
 
@@ -48,7 +48,7 @@ dz.addEventListener('drop', ev => { const inp = document.getElementById('fileInp
   {% for r in results %}
   <tr>
     <td><a class="text-fj" href="/vin/{{ r.vin }}{% if r.mileage %}?mileage={{ r.mileage }}{% endif %}">{{ r.vin or r.raw }}</a></td>
-    {% if r.veh %}<td>{{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} <span class="text-slate-500">{{ r.veh.trim }} · {{ r.veh.spec }} · {{ r.veh.body }}</span></td>{% else %}<td class="text-slate-400">–</td>{% endif %}
+    {% if r.veh %}<td>{{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} <span class="text-slate-500">{{ r.veh.trim }} · {{ r.veh.spec }} · {{ r.veh.body }}</span>{% if r.veh.key_pkgs %}<br>{% for f in r.veh.key_pkgs %}<span class="inline-block rounded bg-fj-light text-fj-dark px-1.5 py-0.5 mr-1 text-[11px]">{{ f }}</span>{% endfor %}{% endif %}</td>{% else %}<td class="text-slate-400">–</td>{% endif %}
     <td class="text-right">{{ r.mileage|num }} <span class="text-xs text-slate-400">{{ r.veh.mileage_band if r.veh }}</span></td>
     {% if r.rec %}
       <td class="text-xs">{{ r.rec.level }}</td><td class="text-right">{{ r.rec.n }}</td>
