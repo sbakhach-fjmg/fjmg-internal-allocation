@@ -15,14 +15,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import (DATA_DIR, STORES, APP_PASSWORD, DECODE_PASSWORD, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
+from app.config import (DATA_DIR, STORES, EXCLUDED_STORES, APP_PASSWORD, DECODE_PASSWORD, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
                         GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS)
 from app.db import init_db, connect, db, scalar
 from app.ingest.sales import parse_sales, store_deals, ORIGIN
 from app.decode import marketcheck as mc
 from app.decode.taxonomy import UNKNOWN
 from app.analysis import cohorts as co
-from app.analysis.cohorts import Logic, CRITERIA, LEVELS, TIE_PRESETS, tie_preset_of
+from app.analysis.cohorts import Logic, CRITERIA, LEVELS, TIE_PRESETS, tie_preset_of, KEY_PACKAGES, PACKAGE_WEIGHT, KEY_PACKAGE_WEIGHT, PACKAGE_MATCH_SHARE
+from app.decode.taxonomy import MILEAGE_BANDS
 from app.analysis.enrich import backfill, decode_counts
 from app.auth import AuthMiddleware, password_ok, decode_password_ok, set_session, COOKIE
 
@@ -368,6 +369,66 @@ def logic_reset():
     resp = RedirectResponse(url="/logic?msg=Reset+to+defaults", status_code=303)
     resp.delete_cookie(LOGIC_COOKIE)
     return resp
+
+
+# ---------------------------------------------------------------- rules
+def rules_for(logic: Logic) -> list:
+    m = f_money
+    stores = ", ".join(f"{v['name']} ({k})" for k, v in STORES.items())
+    excluded = ", ".join(sorted(EXCLUDED_STORES))
+    bands = " · ".join(b[2] for b in MILEAGE_BANDS)
+    fams = ", ".join(f for f, _ in KEY_PACKAGES)
+    levels = "".join(f"<li>{label}</li>" for label, _, _ in LEVELS)
+    preset = tie_preset_of(logic)
+    chain = " → ".join(CRITERIA[c][0] for c in logic.order)
+    return [
+        ("Data", [
+            {"title": "Retail and lease only", "body": "Only used deals with Sale Type <b>Retail</b> or <b>Lease</b> are loaded. Wholesale deals are dropped at import because they are not a retail outcome and we want to retail these cars. New-car rows are dropped too."},
+            {"title": "Active stores only", "body": f"Deals from stores no longer with the group are dropped at import: <b>{excluded}</b>. Active stores: {stores}. Store names can be overridden in <code>data/stores.json</code>."},
+            {"title": "Rolling six-month window", "body": f"Every ranking uses deals sold in the last <b>{ANALYSIS_MONTHS} months</b> ending at the newest sold date in the data. Older deals stay in the database but are not counted."},
+            {"title": "Monthly re-upload merges", "body": "Deals are keyed on store + deal number + VIN, so uploading the Advent file again (overlapping months included) updates existing deals and adds new ones. Nothing is duplicated."},
+            {"title": "Decode once, cache forever", "body": "Each VIN is decoded through MarketCheck once and stored. Only VINs the site has never seen cost an API call. The cache can be exported and imported on the Data tab, so a new install does not re-decode."},
+            {"title": "Decoding needs a password", "body": "Starting a backfill (the \"Decode pending VINs\" button, or decode-after-upload) requires the decode password because each VIN is a MarketCheck call. Placement lookups still decode a brand-new VIN on the fly for signed-in users."},
+        ]),
+        ("Vehicle taxonomy", [
+            {"title": "Year and make from Advent", "body": "Year and make come from the sales export. Model, trim, body, drivetrain, powertrain, exterior color, MSRP and factory packages come from the MarketCheck NeoVIN decode."},
+            {"title": "Trims normalized and upper-cased", "body": "Mercedes trims are spaced consistently (C300 → C 300, GLC350e → GLC 350E) and drivetrain words like 4MATIC are removed from the trim, since drivetrain lives in Spec. A \"Base\" Mercedes trim is replaced by the version name (EQS 450+). All trims display in upper case."},
+            {"title": "Body words stripped from model", "body": "Trailing body words are removed from model names so C-Class Sedan and C-Class group together. Genuinely different models keep their names: EQS SUV is not EQS, Bronco 4-Door is not Bronco."},
+            {"title": "Mileage bands", "body": f"Mileage is grouped into bands: <b>{bands}</b>. Placement uses the mileage you supply with the VIN; a VIN decode does not carry mileage."},
+            {"title": "Spec is drivetrain and powertrain", "body": "Spec = drivetrain (4WD / 2WD) · powertrain (Combustion, MHEV, HEV, PHEV, BEV). It separates a GLC 300 from a GLC 300 4MATIC, and a gas car from a hybrid."},
+            {"title": "Key package families", "body": f"Factory packages are grouped into families so spelling variants match: <b>{fams}</b>. AMG Line Exterior and AMG Line w/Night both count as AMG Line. Accessory items (floor mats, cargo trays, PIO accessories) are ignored."},
+            {"title": "Base cars are real", "body": "A unit with no packages is a base-spec car, not missing data. Against an optioned car it counts as an options mismatch; against another base car the options half of the score simply does not apply."},
+            {"title": "Undecoded VINs fall back", "body": "If a VIN has not been decoded yet, its model and trim are approximated from the Advent model code (Mercedes sales codes are expanded) and spec shows as (unknown) until the backfill catches up."},
+        ]),
+        ("Ranking", [
+            {"title": "Volume leader is number one", "body": "Under the default criterion the store that has sold the most of a car ranks first and the rest follow in volume order. Volume is the proven-market signal."},
+            {"title": "Gross override", "body": f"When \"Most units sold\" is first, another store takes #1 only if its adjusted total gross is at least <b>{m(logic.over_abs)}</b> more per car than the volume leader's" + (f" and at least {int(logic.over_pct*100)}% more" if logic.over_pct > 0 else "") + f", and it has at least <b>{logic.min_best}</b> sales of its own."},
+            {"title": "Priority order with tie bands", "body": f"Criteria are ranked in the order set on the Logic tab, currently <b>{chain}</b>. The first criterion decides; stores within the tie band on it count as tied and the next criterion breaks the tie. Tie preset: <b>{TIE_PRESETS[preset][0] if preset in TIE_PRESETS else 'Custom'}</b> (units within {int(logic.tie_units_pct*100)}%, gross within {m(logic.tie_gross)}, days within {int(logic.tie_days)})."},
+            {"title": "Thin stores are not ranked", "body": f"A store needs at least <b>{logic.min_store}</b> deals in a cohort to be ranked for it. Thinner stores are listed in grey for reference only."},
+            {"title": "Adjusted figures shrink small samples", "body": f"Adj front / back / total / days pull a store's average toward the group-wide average for that car in proportion to how few deals it has: (n × store avg + K × group avg) ÷ (n + K), with K = <b>{int(logic.k)}</b>. A store with {int(logic.k)} deals is weighted half on its own numbers."},
+            {"title": "Gross per slot per year", "body": "Adj total gross × 365 ÷ adj days to sell: what one parking spot earns in a year if you keep putting this car there. Informational unless chosen as a criterion."},
+            {"title": "Similar units score", "body": f"For a vehicle being placed, each sold unit scores 0–1: <b>{int((1-PACKAGE_WEIGHT)*100)}%</b> for matching spec attributes (trim, drivetrain, powertrain, body, mileage band, color, year) and <b>{int(PACKAGE_WEIGHT*100)}%</b> for sharing its factory packages, where a key package weighs <b>{int(KEY_PACKAGE_WEIGHT)}×</b> a minor one. A store's Similar figure is the sum, shown out of its unit count; click it for the breakdown."},
+            {"title": "Options match column", "body": "The average share of the incoming car's packages found on the store's sold units, shown on its own next to Similar so the options effect is visible."},
+            {"title": "Most similar needs a vehicle", "body": "The \"Most similar units sold\" criterion only applies on Placement and VIN pages, where there is a car to compare to. On the Models and Stores pages it is skipped and the next criterion in your list applies."},
+        ]),
+        ("Placement", [
+            {"title": "Key packages must match first", "body": f"At the options levels a sold unit only counts if it carries <b>every</b> key package family the incoming car has. A car with only minor packages needs at least {int(PACKAGE_MATCH_SHARE*100)}% of them matched. A car with no usable packages skips the options levels."},
+            {"title": "Relax one thing at a time", "body": f"Matching starts at the most specific level and relaxes miles, then spec, then year while keeping options, then drops options and repeats, down to model, body and make:<ol class='list-decimal ml-5 mt-1'>{levels}</ol>"},
+            {"title": "Minimum deals per level", "body": f"A level is only used when it has at least <b>{logic.min_cohort}</b> deals and at least one store that qualifies to be ranked. Otherwise the next, broader level is tried. The level used is shown with each result."},
+            {"title": "Mileage comes from your list", "body": "Enter mileage with each VIN (\"VIN mileage\" per line, or a Mileage column in the sheet). Without it the mileage band is unknown and the mileage levels are skipped."},
+            {"title": "Sold by us before", "body": "If an incoming VIN has been retailed by the group inside the window, that history is shown with the recommendation."},
+        ]),
+        ("Display", [
+            {"title": "Number one is blue", "body": "In every table the #1 store for the cohort is highlighted in light blue; the ranking criterion's column header is darkened."},
+            {"title": "Store code is the Advent DealerCode", "body": "Codes like NBMBN and BHAUD are the Advent dealer codes and appear next to the store name everywhere so tables stay compact."},
+            {"title": "Logic settings are per browser", "body": "The priority order and settings on the Logic tab are stored in your browser, so two people can look at the same data under different logic without affecting each other. Reset returns to the site defaults."},
+        ]),
+    ]
+
+
+@app.get("/rules", response_class=HTMLResponse)
+def rules_page(request: Request):
+    return templates.TemplateResponse("rules.html", ctx(request, rules=rules_for(get_logic(request))))
 
 
 # ---------------------------------------------------------------- VIN page

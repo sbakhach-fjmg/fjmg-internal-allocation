@@ -18,7 +18,7 @@
 <nav class="bg-fj text-white">
   <div class="max-w-screen-2xl mx-auto px-4 flex flex-wrap items-center gap-x-5 gap-y-1 min-h-[3.5rem] py-2">
     <a href="/" class="flex items-center gap-3 whitespace-nowrap shrink-0 mr-2"><img src="/static/fj-logo-white.png" alt="Fletcher Jones Automotive Group" class="h-10 w-auto"><span class="font-semibold tracking-tight text-white border-l border-white/40 pl-3">Internal Allocation</span></a>
-    {% set nav=[("/","Placement"),("/models","Models"),("/stores","Stores"),("/logic","Logic"),("/upload","Data")] %}
+    {% set nav=[("/","Placement"),("/models","Models"),("/stores","Stores"),("/logic","Logic"),("/rules","Rules"),("/upload","Data")] %}
     {% for href,label in nav %}<a href="{{href}}" class="text-sm hover:text-white {{ 'text-white border-b-2 border-white' if path==href or path==href+'/' or (href=='/' and path=='/placement') or (href!='/' and path.startswith(href)) else 'text-white/75' }}">{{label}}</a>{% endfor %}
     <div class="ml-auto text-xs text-white/75 flex items-center gap-3 whitespace-nowrap">
       {% if deals %}<span class="hidden xl:inline" title="Rolling {{ANALYSIS_MONTHS}}-month window ending at the newest sale; older deals stay stored">{{deals|num}} deals · {{sold_min}} → {{sold_max}}</span>{% else %}<span>No data yet</span>{% endif %}

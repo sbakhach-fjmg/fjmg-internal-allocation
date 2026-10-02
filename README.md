@@ -38,7 +38,7 @@ Separate from every other FJ tool: its own code, database, MarketCheck cache and
 Pages (in nav order): **Placement** (home) · **Models** (cohort × store matrix, filter by year / make /
 model, group by model / trim / year / miles / spec) · model detail (year / trim / mileage / spec / body /
 color / factory package breakdowns) · **Stores** (store summary, where each store wins, units by month)
-· **Logic** (ranking criterion + thresholds + formulas) · **Data** (uploads, decode status/quota) · `/vin/<VIN>` lookup · `/export.xlsx` full analysis workbook.
+· **Logic** (priority order + settings) · **Rules** (every rule and formula, with dropdown descriptions) · **Data** (uploads, decode status/quota) · `/vin/<VIN>` lookup · `/export.xlsx` full analysis workbook.
 
 ## Run locally
 
