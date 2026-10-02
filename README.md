@@ -23,7 +23,8 @@ Separate from every other FJ tool: its own code, database, MarketCheck cache and
    - *Gross / slot / yr* — adj total × 365 / adj days: what one inventory slot earns per year (information)
    - **Ranking rule**: the store that has sold the most of that car is #1, and the rest follow in volume
      order. Another store takes #1 only when its adj gross per unit beats the volume leader's by at least
-     `GROSS_OVERRIDE_PCT` (75%) *and* `GROSS_OVERRIDE_ABS` ($2,000), with at least `MIN_N_BEST` (5) sales of its own.
+     `GROSS_OVERRIDE_ABS` ($2,000) — optionally also by `GROSS_OVERRIDE_PCT` (default off) — with at least
+     `MIN_N_BEST` (5) sales of its own.
 4. **Logic tab** — the user puts the criteria in priority order (remembered per browser): most units sold
    (default first, with the gross override), best total / front / back gross, gross per slot per year,
    fastest turn, most similar units sold (attribute + package overlap with the vehicle being placed).

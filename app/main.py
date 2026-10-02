@@ -22,7 +22,7 @@ from app.ingest.sales import parse_sales, store_deals, ORIGIN
 from app.decode import marketcheck as mc
 from app.decode.taxonomy import UNKNOWN
 from app.analysis import cohorts as co
-from app.analysis.cohorts import Logic, CRITERIA, LEVELS
+from app.analysis.cohorts import Logic, CRITERIA, LEVELS, TIE_PRESETS, tie_preset_of
 from app.analysis.enrich import backfill, decode_counts
 from app.auth import AuthMiddleware, password_ok, decode_password_ok, set_session, COOKIE
 
@@ -84,7 +84,7 @@ def f_title(v):
 templates.env.filters.update(money=f_money, num=f_num, pct=f_pct, t=f_title)
 templates.env.globals.update(STORES=STORES, store_name=store_name, UNKNOWN=UNKNOWN, ORIGIN=ORIGIN, now=datetime.now,
                              MIN_N_STORE=MIN_N_STORE, MIN_N_BEST=MIN_N_BEST, MIN_N_COHORT=MIN_N_COHORT, PRIOR_K=PRIOR_K, ANALYSIS_MONTHS=ANALYSIS_MONTHS,
-                             GROSS_OVERRIDE_PCT=GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS=GROSS_OVERRIDE_ABS, CRITERIA=CRITERIA, LEVELS=LEVELS, MIN_DAYS=10)
+                             GROSS_OVERRIDE_PCT=GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS=GROSS_OVERRIDE_ABS, CRITERIA=CRITERIA, LEVELS=LEVELS, MIN_DAYS=10, TIE_PRESETS=TIE_PRESETS, tie_preset_of=tie_preset_of)
 
 
 # ---------------------------------------------------------------- cached frame + background job
@@ -353,6 +353,10 @@ async def logic_save(request: Request):
             d[target] = float(form.get(pct_field) or 0) / 100.0
         except ValueError:
             d[target] = None
+    preset = form.get("tie_preset")
+    if preset in TIE_PRESETS and form.get("advanced_open") != "1":   # simple mode: the preset sets all four tie bands
+        _, _, u, g, dd, r = TIE_PRESETS[preset]
+        d.update({"tie_units_pct": u, "tie_gross": g, "tie_days": dd, "tie_rel": r})
     logic = Logic.from_dict(d)
     resp = RedirectResponse(url="/logic?msg=Saved.+Ranking+by+" + logic.label.replace(" ", "+"), status_code=303)
     resp.set_cookie(LOGIC_COOKIE, json.dumps(logic.to_dict()), max_age=365 * 24 * 3600, samesite="lax")

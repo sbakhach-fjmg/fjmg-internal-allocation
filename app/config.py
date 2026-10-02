@@ -60,7 +60,7 @@ ANALYSIS_MONTHS = int(os.environ.get("ANALYSIS_MONTHS", "6"))  # rolling window 
 PRIOR_K = float(os.environ.get("PRIOR_K", "8"))        # shrinkage strength: a store with n deals is weighted n/(n+K) vs the cohort mean
 MIN_N_STORE = int(os.environ.get("MIN_N_STORE", "3"))  # deals a store needs at a cohort level to be ranked
 MIN_N_BEST = int(os.environ.get("MIN_N_BEST", "5"))    # deals a store needs before its gross can override a higher-volume store
-GROSS_OVERRIDE_PCT = float(os.environ.get("GROSS_OVERRIDE_PCT", "0.75"))   # challenger must beat the volume leader's adj gross by this share...
+GROSS_OVERRIDE_PCT = float(os.environ.get("GROSS_OVERRIDE_PCT", "0"))      # optional extra: challenger must also beat the leader by this share (0 = off)
 GROSS_OVERRIDE_ABS = float(os.environ.get("GROSS_OVERRIDE_ABS", "2000"))  # ...and by at least this many dollars per unit
 MIN_N_COHORT = int(os.environ.get("MIN_N_COHORT", "5"))  # retail deals a cohort level needs before we trust it
 MIN_DAYS = 10                                          # floor on days-to-sell when annualizing (avoids divide-by-tiny)

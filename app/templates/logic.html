@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_macros.html" import info %}
 {% block title %}Logic · FJ Internal Allocation{% endblock %}
 {% block body %}
 <h1 class="text-2xl font-semibold mb-1">Logic</h1>
@@ -24,23 +24,36 @@
   </div>
 
   <div class="space-y-4">
-    <div class="rounded border border-slate-200 bg-white p-4 text-sm space-y-3">
-      <div class="font-medium">Tie bands <span class="text-slate-400 font-normal">(when stores count as tied on a criterion)</span></div>
-      <label class="block">Units sold within <input name="tie_units_pct" type="number" min="0" step="5" value="{{(logic.tie_units_pct*100)|int}}" class="border rounded px-2 py-1 w-20"> % of each other</label>
-      <label class="block">Gross figures within $<input name="tie_gross" type="number" min="0" step="50" value="{{logic.tie_gross|int}}" class="border rounded px-2 py-1 w-24"> per unit</label>
-      <label class="block">Days to sell within <input name="tie_days" type="number" min="0" step="1" value="{{logic.tie_days|int}}" class="border rounded px-2 py-1 w-20"> days</label>
-      <label class="block">Gross/slot/yr and similarity within <input name="tie_rel" type="number" min="0" step="5" value="{{(logic.tie_rel*100)|int}}" class="border rounded px-2 py-1 w-20"> %</label>
+    {% set preset = tie_preset_of(logic) %}
+    <div class="rounded border border-slate-200 bg-white p-4 text-sm space-y-4">
+      <div class="font-medium">Settings</div>
+      <label class="block">How close counts as a tie {{ info("When two stores are this close on a criterion, they are treated as tied and the next criterion in your list decides. Normal = units within 15%, gross within $500, days within 5.") }}<br>
+        <select name="tie_preset" class="border rounded px-2 py-1 mt-1 w-full">
+          {% for key, (label, desc, u, g, d, r) in TIE_PRESETS.items() %}<option value="{{key}}" {{ 'selected' if preset==key }}>{{label}} — {{desc}}</option>{% endfor %}
+          {% if preset=='custom' %}<option value="custom" selected>Custom (set under Advanced)</option>{% endif %}
+        </select></label>
+      <label class="block">A store needs at least <input name="min_store" type="number" min="1" value="{{logic.min_store}}" class="border rounded px-2 py-1 w-16 mx-1"> sales of a car to be ranked for it.</label>
+      <div class="pt-1">
+        <div class="font-medium mb-1">Gross override <span class="text-slate-400 font-normal">(only when "Most units sold" is first)</span></div>
+        A store can jump to #1 if it makes at least $<input name="over_abs" type="number" min="0" step="100" value="{{logic.over_abs|int}}" class="border rounded px-2 py-1 w-24 mx-1"> more per car than the volume leader, as long as it has at least <input name="min_best" type="number" min="1" value="{{logic.min_best}}" class="border rounded px-2 py-1 w-16 mx-1"> sales of its own.
+      </div>
     </div>
-    <div class="rounded border border-slate-200 bg-white p-4 text-sm space-y-3">
-      <div class="font-medium">Thresholds</div>
-      <label class="block">Min deals for a store to be ranked<br><input name="min_store" type="number" min="1" value="{{logic.min_store}}" class="border rounded px-2 py-1 w-24"></label>
-      <label class="block">Min deals for a cohort level to be trusted (Placement)<br><input name="min_cohort" type="number" min="1" value="{{logic.min_cohort}}" class="border rounded px-2 py-1 w-24"></label>
-      <label class="block">Shrinkage weight K <span class="text-slate-400">(a store with K deals is weighted 50/50 with the cohort mean)</span><br><input name="k" type="number" min="0" step="1" value="{{logic.k|int}}" class="border rounded px-2 py-1 w-24"></label>
-      <div class="font-medium pt-2">Gross override <span class="text-slate-400 font-normal">(when "Most units sold" is first)</span></div>
-      <label class="block">Another store takes #1 if its adj total gross beats the leader's by at least<br><input name="over_pct" type="number" min="0" step="5" value="{{(logic.over_pct*100)|int}}" class="border rounded px-2 py-1 w-24"> %</label>
-      <label class="block">…and by at least $<input name="over_abs" type="number" min="0" step="100" value="{{logic.over_abs|int}}" class="border rounded px-2 py-1 w-28"> per unit</label>
-      <label class="block">…with at least <input name="min_best" type="number" min="1" value="{{logic.min_best}}" class="border rounded px-2 py-1 w-20"> sales of its own</label>
-    </div>
+
+    <details class="rounded border border-slate-200 bg-white text-sm" {{ 'open' if preset=='custom' or logic.over_pct > 0 }}>
+      <summary class="cursor-pointer px-4 py-3 text-slate-600 select-none">Advanced</summary>
+      <div class="px-4 pb-4 space-y-3 border-t border-slate-200 pt-3">
+        <input type="hidden" name="advanced_open" value="{{ '1' if preset=='custom' else '0' }}" id="advOpen">
+        <div class="font-medium">Tie bands (fine-tune; overrides the preset above)</div>
+        <label class="block">Units sold within <input name="tie_units_pct" type="number" min="0" step="5" value="{{(logic.tie_units_pct*100)|int}}" oninput="document.getElementById('advOpen').value='1'" class="border rounded px-2 py-1 w-20"> % of each other</label>
+        <label class="block">Gross figures within $<input name="tie_gross" type="number" min="0" step="50" value="{{logic.tie_gross|int}}" oninput="document.getElementById('advOpen').value='1'" class="border rounded px-2 py-1 w-24"> per unit</label>
+        <label class="block">Days to sell within <input name="tie_days" type="number" min="0" step="1" value="{{logic.tie_days|int}}" oninput="document.getElementById('advOpen').value='1'" class="border rounded px-2 py-1 w-20"> days</label>
+        <label class="block">Gross/slot/yr and similarity within <input name="tie_rel" type="number" min="0" step="5" value="{{(logic.tie_rel*100)|int}}" oninput="document.getElementById('advOpen').value='1'" class="border rounded px-2 py-1 w-20"> %</label>
+        <div class="font-medium pt-2">Other</div>
+        <label class="block">Override must also beat the leader by at least <input name="over_pct" type="number" min="0" step="5" value="{{(logic.over_pct*100)|int}}" class="border rounded px-2 py-1 w-20"> % <span class="text-slate-400">(0 = off)</span></label>
+        <label class="block">Min sales for a match level to be used on Placement <input name="min_cohort" type="number" min="1" value="{{logic.min_cohort}}" class="border rounded px-2 py-1 w-20"></label>
+        <label class="block">Small-sample caution K <span class="text-slate-400">(a store with K sales is weighted 50/50 with the group average)</span> <input name="k" type="number" min="0" step="1" value="{{logic.k|int}}" class="border rounded px-2 py-1 w-20"></label>
+      </div>
+    </details>
     <button class="bg-fj hover:bg-fj-dark text-white rounded px-4 py-2">Save</button>
     <a href="/logic/reset" class="ml-3 text-sm text-slate-500 hover:underline">Reset to defaults</a>
   </div>
@@ -61,8 +74,9 @@ function move(btn, dir){
 }
 </script>
 
-<h2 class="text-lg font-semibold mt-10 mb-2">How the numbers are built</h2>
-<div class="grid md:grid-cols-2 gap-4 text-sm">
+<details class="mt-10">
+<summary class="cursor-pointer text-lg font-semibold select-none">How the numbers are built</summary>
+<div class="grid md:grid-cols-2 gap-4 text-sm mt-3">
   <div class="rounded border border-slate-200 bg-white p-4 space-y-2">
     <div class="font-medium">Data</div>
     <p>Advent sales export, <em>sales</em> sheet. Used · Retail or Lease · active stores only. Wholesale deals and former stores are dropped. Deals are keyed on store + deal number + VIN so monthly re-uploads merge; the analysis uses the last {{ANALYSIS_MONTHS}} months ending at the newest sale.</p>
@@ -82,4 +96,5 @@ function move(btn, dir){
     <p><b>Ranked / thin</b> — a store needs {{logic.min_store}} deals in the cohort to be ranked; thinner stores are listed but greyed out.</p>
   </div>
 </div>
+</details>
 {% endblock %}

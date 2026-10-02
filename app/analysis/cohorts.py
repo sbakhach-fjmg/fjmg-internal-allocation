@@ -127,6 +127,21 @@ class Logic:
         return " → ".join(CRITERIA[c][0] for c in self.order)
 
 
+# "How close counts as a tie" presets -> (units %, gross $, days, relative %)
+TIE_PRESETS = {
+    "tight": ("Tight", "stores must be almost identical to count as tied", 0.05, 200.0, 2.0, 0.05),
+    "normal": ("Normal", "a modest gap still counts as tied", 0.15, 500.0, 5.0, 0.15),
+    "loose": ("Loose", "stores in the same ballpark count as tied", 0.25, 1000.0, 10.0, 0.25),
+}
+
+
+def tie_preset_of(logic: "Logic") -> str:
+    for key, (_, _, u, g, d, r) in TIE_PRESETS.items():
+        if (abs(logic.tie_units_pct - u) < 1e-9 and abs(logic.tie_gross - g) < 1e-6 and abs(logic.tie_days - d) < 1e-6 and abs(logic.tie_rel - r) < 1e-9):
+            return key
+    return "custom"
+
+
 DEFAULT = Logic()
 
 
