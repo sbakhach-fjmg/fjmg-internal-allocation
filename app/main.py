@@ -71,8 +71,14 @@ def f_pct(v):
         return "–"
 
 
+ACRONYM_MAKES = {"BMW", "GMC", "RAM", "MINI", "AMC", "SRT", "VW", "MG", "FJ"}
+
+
 def f_title(v):
-    return str(v).title() if isinstance(v, str) and v.isupper() else v
+    """Title-case an upper-case make, keeping acronym makes (BMW, GMC, RAM, MINI) upper-case."""
+    if not (isinstance(v, str) and v.isupper()):
+        return v
+    return " ".join(w if w in ACRONYM_MAKES else w.title() for w in v.split(" "))
 
 
 templates.env.filters.update(money=f_money, num=f_num, pct=f_pct, t=f_title)
