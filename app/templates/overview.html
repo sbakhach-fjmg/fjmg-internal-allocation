@@ -9,24 +9,22 @@
 <div class="rounded border border-slate-200 bg-white overflow-x-auto">
 <table class="tbl text-sm w-full border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
-    <th class="w-6"></th><th>Store</th><th>Brand</th><th class="text-right">Sold</th>
+    <th class="w-6"></th><th>Store</th><th class="text-right">Sold</th>
     <th class="text-right">Avg front</th><th class="text-right">Avg back</th><th class="text-right">Avg total</th><th class="text-right">Total gross</th>
-    <th class="text-right">Med days</th><th class="text-right">Avg price</th><th class="text-right">Med miles</th>
+    <th class="text-right">Med days</th>
   </tr></thead>
   <tbody>
   {% for s in stores %}
   <tr class="cursor-pointer select-none" onclick="toggleStore('{{ s.store }}', this)">
     <td class="text-fj text-xs"><span class="inline-block transition-transform" id="chev-{{ s.store }}">▶</span></td>
     <td class="font-medium">{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span></td>
-    <td class="text-slate-500">{{ s.brand }}</td>
     <td class="text-right">{{ s.n }}</td>
     <td class="text-right">{{ gross(s.front) }}</td><td class="text-right">{{ gross(s.back) }}</td><td class="text-right font-medium">{{ gross(s.total) }}</td>
-    <td class="text-right">{{ gross(s.total_sum) }}</td><td class="text-right">{{ s.days|num }}</td><td class="text-right">{{ s.price|money }}</td>
-    <td class="text-right">{{ s.miles|num }}</td>
+    <td class="text-right">{{ gross(s.total_sum) }}</td><td class="text-right">{{ s.days|num }}</td>
   </tr>
   <tr id="store-{{ s.store }}" class="hidden bg-slate-50">
     <td></td>
-    <td colspan="10" class="py-3">
+    <td colspan="7" class="py-3">
       <div class="grid md:grid-cols-2 gap-6">
         <div>
           <div class="text-xs uppercase text-slate-500 mb-1">Top models sold</div>
