@@ -11,7 +11,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, Request, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -421,6 +421,30 @@ def decode_start(limit: Optional[int] = Form(None), password: str = Form("")):
 def decode_stop():
     JOB["cancel"] = True
     return RedirectResponse(url="/upload?msg=Stopping+after+the+current+VIN", status_code=303)
+
+
+@app.post("/specs/import")
+async def specs_import(file: UploadFile = File(...), password: str = Form("")):
+    if not decode_password_ok(password):
+        return RedirectResponse(url="/upload?msg=Wrong+decode+password", status_code=303)
+    data = await file.read()
+    try:
+        with connect() as con:
+            res = mc.import_specs(con, io.BytesIO(data))
+    except Exception as e:  # noqa: BLE001
+        return RedirectResponse(url=f"/upload?msg=Import+failed:+{str(e)[:120].replace(' ', '+')}", status_code=303)
+    msg = f"Decode cache imported: {res['added']} VINs added, {res['already_had']} already present, {res['bad']} skipped"
+    return RedirectResponse(url="/upload?msg=" + msg.replace(" ", "+"), status_code=303)
+
+
+@app.post("/specs/export")
+def specs_export(password: str = Form("")):
+    if not decode_password_ok(password):
+        return RedirectResponse(url="/upload?msg=Wrong+decode+password", status_code=303)
+    tmp = DATA_DIR / f"decode-cache-{datetime.now():%Y%m%d}.jsonl.gz"
+    with connect() as con:
+        mc.export_specs(con, tmp)
+    return FileResponse(tmp, media_type="application/gzip", filename=tmp.name)
 
 
 @app.get("/decode/status")

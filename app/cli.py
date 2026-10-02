@@ -1,4 +1,4 @@
-"""Command line helpers:  python -m app.cli load <file>   |   python -m app.cli decode [limit]   |   python -m app.cli status"""
+"""Command line helpers:  python -m app.cli load <file> | decode [limit] | export-specs <file.jsonl.gz> | import-specs <file.jsonl.gz> | status"""
 from __future__ import annotations
 import sys
 from datetime import datetime
@@ -26,6 +26,13 @@ def main(argv):
         prog = {}
         res = backfill(con, prog, limit=limit)
         print(res, mc.status())
+    elif cmd == "export-specs":
+        con = connect()
+        print("exported", mc.export_specs(con, argv[2]), "decoded VINs to", argv[2])
+    elif cmd == "import-specs":
+        con = connect()
+        with open(argv[2], "rb") as f:
+            print("import:", mc.import_specs(con, f))
     with connect() as con:
         print("decode counts:", decode_counts(con))
 

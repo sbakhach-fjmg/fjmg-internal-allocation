@@ -171,3 +171,50 @@ def decode_and_store(con, vin: str) -> dict:
     upsert_spec(con, rec)
     con.commit()
     return rec
+
+
+# ---------------------------------------------------------------- cache transfer (move decodes between installs)
+import gzip
+
+
+def export_specs(con, path) -> int:
+    """Write every successfully decoded VIN as gzip'd JSON lines. Returns the row count."""
+    rows = con.execute(f"SELECT {','.join(SPEC_COLS)} FROM vin_specs WHERE error IS NULL").fetchall()
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(dict(zip(SPEC_COLS, r)), default=str) + "\n")
+    return len(rows)
+
+
+def import_specs(con, fileobj) -> dict:
+    """Load a cache export. Existing good rows are kept; missing or errored VINs are filled in."""
+    have = {r[0] for r in con.execute("SELECT vin FROM vin_specs WHERE error IS NULL")}
+    added = skipped = bad = 0
+    with gzip.open(fileobj, "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                bad += 1
+                continue
+            vin = (rec.get("vin") or "").upper()
+            if len(vin) != 17 or rec.get("error"):
+                bad += 1
+                continue
+            if vin in have:
+                skipped += 1
+                continue
+            rec["vin"] = vin
+            if rec.get("packages") is None and rec.get("raw"):
+                try:
+                    rec["packages"] = json.dumps(extract_packages(json.loads(rec["raw"])))
+                except ValueError:
+                    pass
+            upsert_spec(con, rec)
+            have.add(vin)
+            added += 1
+    con.commit()
+    return {"added": added, "already_had": skipped, "bad": bad}
