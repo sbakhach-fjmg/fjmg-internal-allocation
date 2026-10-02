@@ -16,8 +16,8 @@
 </head>
 <body class="bg-white text-slate-800">
 <nav class="bg-fj text-white">
-  <div class="max-w-screen-2xl mx-auto px-4 flex items-center gap-5 h-14">
-    <a href="/" class="flex items-center gap-3 whitespace-nowrap"><img src="/static/fj-logo-white.png" alt="Fletcher Jones Automotive Group" class="h-7 w-auto"><span class="font-semibold tracking-tight text-white border-l border-white/40 pl-3">Internal Allocation</span></a>
+  <div class="max-w-screen-2xl mx-auto px-4 flex flex-wrap items-center gap-x-5 gap-y-1 min-h-[3.5rem] py-2">
+    <a href="/" class="flex items-center gap-3 whitespace-nowrap shrink-0 mr-2"><img src="/static/fj-logo-white.png" alt="Fletcher Jones Automotive Group" class="h-7 w-auto"><span class="font-semibold tracking-tight text-white border-l border-white/40 pl-3">Internal Allocation</span></a>
     {% set nav=[("/","Stores"),("/models","Models"),("/placement","Placement"),("/logic","Logic"),("/upload","Data")] %}
     {% for href,label in nav %}<a href="{{href}}" class="text-sm hover:text-white {{ 'text-white border-b-2 border-white' if path==href or (href!='/' and path.startswith(href)) else 'text-white/75' }}">{{label}}</a>{% endfor %}
     <form onsubmit="location='/vin/'+this.v.value.trim().toUpperCase();return false" class="ml-2"><input name="v" placeholder="VIN lookup" class="bg-white/15 placeholder-white/60 text-white text-xs rounded px-2 py-1 w-44 border border-white/30"></form>
