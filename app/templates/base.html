@@ -4,34 +4,35 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}FJ Used Sales{% endblock %}</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{fj:{DEFAULT:'#009EDB',dark:'#007FB0',light:'#E6F5FC',mid:'#B3E2F5'}}}}}</script>
 <style>
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  .tbl th{position:sticky;top:0;background:#f1f5f9;z-index:1}
+  .tbl th{position:sticky;top:0;background:#E6F5FC;color:#007FB0;z-index:1}
   .tbl td,.tbl th{padding:.35rem .5rem;white-space:nowrap}
-  .tbl tbody tr:hover{background:#f8fafc}
+  .tbl tbody tr:hover{background:#F4FBFE}
   .neg{color:#b91c1c}
   .cell{min-width:5.5rem}
 </style>
 </head>
-<body class="bg-slate-50 text-slate-800">
-<nav class="bg-slate-900 text-slate-100">
+<body class="bg-white text-slate-800">
+<nav class="bg-fj text-white">
   <div class="max-w-screen-2xl mx-auto px-4 flex items-center gap-5 h-14">
-    <a href="/" class="font-semibold tracking-tight text-white whitespace-nowrap">FJ <span class="text-slate-400">Used Sales</span></a>
+    <a href="/" class="font-semibold tracking-tight text-white whitespace-nowrap">FJ <span class="text-white/70">Used Sales</span></a>
     {% set nav=[("/","Stores"),("/models","Models"),("/placement","Placement"),("/logic","Logic"),("/upload","Data")] %}
-    {% for href,label in nav %}<a href="{{href}}" class="text-sm hover:text-white {{ 'text-white border-b-2 border-amber-400' if path==href or (href!='/' and path.startswith(href)) else 'text-slate-300' }}">{{label}}</a>{% endfor %}
-    <form onsubmit="location='/vin/'+this.v.value.trim().toUpperCase();return false" class="ml-2"><input name="v" placeholder="VIN lookup" class="bg-slate-800 text-xs rounded px-2 py-1 w-44 border border-slate-700"></form>
-    <div class="ml-auto text-xs text-slate-400 flex items-center gap-3 whitespace-nowrap">
+    {% for href,label in nav %}<a href="{{href}}" class="text-sm hover:text-white {{ 'text-white border-b-2 border-white' if path==href or (href!='/' and path.startswith(href)) else 'text-white/75' }}">{{label}}</a>{% endfor %}
+    <form onsubmit="location='/vin/'+this.v.value.trim().toUpperCase();return false" class="ml-2"><input name="v" placeholder="VIN lookup" class="bg-white/15 placeholder-white/60 text-white text-xs rounded px-2 py-1 w-44 border border-white/30"></form>
+    <div class="ml-auto text-xs text-white/75 flex items-center gap-3 whitespace-nowrap">
       {% if deals %}<span class="hidden xl:inline" title="Rolling {{ANALYSIS_MONTHS}}-month window ending at the newest sale; older deals stay stored">{{deals|num}} deals · {{sold_min}} → {{sold_max}}</span>{% else %}<span>No data yet</span>{% endif %}
       <span class="hidden lg:inline" title="VINs decoded with MarketCheck">{{dc.decoded|num}}/{{dc.vins|num}} decoded</span>
-      <a href="/logic" class="hidden md:inline text-amber-300 hover:text-white" title="Ranking criterion (Logic tab)">{{ logic.label }}</a>
-      {% if job.status=='running' %}<span class="text-amber-300 animate-pulse">decoding {{job.done}}/{{job.todo}}…</span>{% endif %}
-      {% if mc.blocked %}<span class="text-rose-400">MarketCheck quota out</span>{% elif mc.key %}<span class="text-emerald-400">MarketCheck on</span>{% else %}<span class="text-amber-400">MarketCheck off</span>{% endif %}
-      <form method="post" action="/logout" class="inline"><button class="text-slate-500 hover:text-white">sign out</button></form>
+      <a href="/logic" class="hidden md:inline text-white font-medium hover:underline" title="Ranking criterion (Logic tab)">{{ logic.label }}</a>
+      {% if job.status=='running' %}<span class="text-white animate-pulse">decoding {{job.done}}/{{job.todo}}…</span>{% endif %}
+      {% if mc.blocked %}<span class="text-rose-200 font-medium">MarketCheck quota out</span>{% elif mc.key %}<span class="text-white/75">MarketCheck on</span>{% else %}<span class="text-rose-200 font-medium">MarketCheck off</span>{% endif %}
+      <form method="post" action="/logout" class="inline"><button class="text-white/60 hover:text-white">sign out</button></form>
     </div>
   </div>
 </nav>
 <main class="max-w-screen-2xl mx-auto px-4 py-6">
-  {% if flash %}<div class="mb-4 rounded border border-sky-200 bg-sky-50 text-sky-900 px-4 py-2 text-sm">{{flash}}</div>{% endif %}
+  {% if flash %}<div class="mb-4 rounded border border-fj-mid bg-fj-light text-fj-dark px-4 py-2 text-sm">{{flash}}</div>{% endif %}
   {% block body %}{% endblock %}
 </main>
 </body></html>

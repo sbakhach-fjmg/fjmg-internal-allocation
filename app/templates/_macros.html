@@ -3,7 +3,7 @@
 {%- endmacro %}
 
 {% macro logic_line(logic) -%}
-<p class="text-xs text-slate-500">Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (override: ≥{{ (logic.over_pct*100)|int }}% and ≥{{ logic.over_abs|money }} more per unit, ≥{{ logic.min_best }} sales){% endif %} · adj = shrunk toward the cohort mean with K={{ logic.k|int }} · ≥{{ logic.min_store }} deals to be ranked · <a href="/logic" class="text-sky-700 hover:underline">change</a></p>
+<p class="text-xs text-slate-500">Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (override: ≥{{ (logic.over_pct*100)|int }}% and ≥{{ logic.over_abs|money }} more per unit, ≥{{ logic.min_best }} sales){% endif %} · adj = shrunk toward the cohort mean with K={{ logic.k|int }} · ≥{{ logic.min_store }} deals to be ranked · <a href="/logic" class="text-fj hover:underline">change</a></p>
 {%- endmacro %}
 
 {% macro store_rank_table(rows, logic, show_similar=False) -%}
@@ -22,9 +22,9 @@
   </tr></thead>
   <tbody>
   {% for s in rows %}
-    <tr class="{{ 'bg-emerald-50 font-medium' if s.rank==1 else ('text-slate-400' if not s.ranked else '') }}">
+    <tr class="{{ 'bg-fj-light font-medium' if s.rank==1 else ('text-slate-400' if not s.ranked else '') }}">
       <td>{{ s.rank if s.rank else '·' }}</td>
-      <td>{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span>{% if not s.ranked %} <span class="text-xs text-amber-600">thin</span>{% endif %}</td>
+      <td>{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span>{% if not s.ranked %} <span class="text-xs text-slate-400">thin</span>{% endif %}</td>
       <td class="text-right {{ 'font-semibold' if hl=='n' }}">{{ s.n }}</td><td class="text-right text-slate-500">{{ s.lease_share|pct }}</td>
       {% if show_similar %}<td class="text-right {{ 'font-semibold' if hl=='similar' }}">{{ s.similar|num(1) }}</td>{% endif %}
       <td class="text-right">{{ gross(s.front) }}</td><td class="text-right {{ 'font-semibold' if hl=='front_hat' }}">{{ gross(s.front_hat) }}</td>
@@ -40,7 +40,7 @@
 {%- endmacro %}
 
 {% macro matrix_table(m, link_model=False) -%}
-<div class="overflow-x-auto rounded border bg-white">
+<div class="overflow-x-auto rounded border border-slate-200 bg-white">
 <table class="tbl text-sm border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
     {% for k in m.cols %}<th>{{ k.replace('_',' ') }}</th>{% endfor %}
@@ -52,13 +52,13 @@
   {% for r in m.rows %}
     <tr>
       {% for k in m.cols %}<td>
-        {% if link_model and k=='model' %}<a class="text-sky-700 hover:underline" href="/model?make={{ r.key.make|urlencode }}&model={{ r.key.model|urlencode }}">{{ r.key[k] }}</a>
+        {% if link_model and k=='model' %}<a class="text-fj hover:underline" href="/model?make={{ r.key.make|urlencode }}&model={{ r.key.model|urlencode }}">{{ r.key[k] }}</a>
         {% else %}{{ r.key[k]|t }}{% endif %}</td>{% endfor %}
       <td class="text-right">{{ r.n }}</td>
       <td class="text-right">{{ gross(r.total) }}</td><td class="text-right">{{ r.days|num }}</td>
       <td>{% if r.best %}<span class="font-medium">{{ r.best.store }}</span> <span class="text-xs text-slate-500">{{ r.best.n }} · {{ gross(r.best.total_hat) }} · {{ r.best.days_hat|num }}d</span>{% else %}<span class="text-slate-400">–</span>{% endif %}</td>
       {% for c in m.stores %}{% set cell = r.cells.get(c) %}
-        <td class="text-right border-l text-xs {{ 'bg-emerald-50' if r.best and cell and cell.store==r.best.store else '' }}">
+        <td class="text-right border-l text-xs {{ 'bg-fj-light' if r.best and cell and cell.store==r.best.store else '' }}">
           {% if cell %}<span class="{{ 'text-slate-400' if not cell.ranked else '' }}">{{ cell.n }} · {{ gross(cell.total) }} · {{ cell.days|num }}d</span>{% else %}<span class="text-slate-300">·</span>{% endif %}
         </td>{% endfor %}
     </tr>

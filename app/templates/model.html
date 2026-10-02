@@ -1,12 +1,12 @@
 {% extends "base.html" %}{% from "_macros.html" import gross, matrix_table, store_rank_table, logic_line %}
 {% block title %}{{ make|t }} {{ model }} · FJ Used Sales{% endblock %}
 {% block body %}
-<div class="mb-4"><a href="/models?make={{ make|urlencode }}" class="text-sm text-sky-700 hover:underline">← {{ make|t }} models</a>
+<div class="mb-4"><a href="/models?make={{ make|urlencode }}" class="text-sm text-fj hover:underline">← {{ make|t }} models</a>
   <h1 class="text-2xl font-semibold">{{ make|t }} {{ model }}</h1>
   <p class="text-sm text-slate-500">{{ n }} retail/lease deals · {{ decoded|pct }} of VINs decoded (undecoded units show "(unknown)" trim/spec until the backfill finishes).</p></div>
 
 <h2 class="text-lg font-semibold mb-2">Store ranking for this model</h2>
-<div class="rounded border bg-white overflow-x-auto mb-2">{{ store_rank_table(overall, logic) }}</div>
+<div class="rounded border border-slate-200 bg-white overflow-x-auto mb-2">{{ store_rank_table(overall, logic) }}</div>
 <div class="mb-8">{{ logic_line(logic) }}</div>
 
 {% for title, m in sections %}
@@ -15,7 +15,7 @@
 {% endfor %}
 
 <h2 class="text-lg font-semibold mb-2">Deals</h2>
-<div class="overflow-x-auto rounded border bg-white">
+<div class="overflow-x-auto rounded border border-slate-200 bg-white">
 <table class="tbl text-xs border-collapse w-full">
   <thead><tr class="text-left uppercase text-slate-500"><th>Sold</th><th>Store</th><th>Type</th><th>Year</th><th>Trim</th><th>Spec</th><th>Color</th><th class="text-right">Miles</th>
     <th class="text-right">Days</th><th class="text-right">Price</th><th class="text-right">Front</th><th class="text-right">Back</th><th class="text-right">Total</th><th>Origin</th><th>VIN</th></tr></thead>
@@ -25,7 +25,7 @@
     <td>{{ d.sold_date }}</td><td>{{ d.dealer_code }}</td><td>{{ d.sale_type }}</td><td>{{ d.year }}</td><td>{{ d.trim }}</td><td>{{ d.spec }}</td><td>{{ d.ext_base }}</td>
     <td class="text-right">{{ d.mileage|num }}</td><td class="text-right">{{ d.days_to_sell|num }}</td><td class="text-right">{{ d.sold_price|money }}</td>
     <td class="text-right">{{ gross(d.front_gross) }}</td><td class="text-right">{{ gross(d.back_gross) }}</td><td class="text-right">{{ gross(d.total_gross) }}</td>
-    <td>{{ ORIGIN.get(d.origin_code, d.origin_code) }}</td><td><a class="text-sky-700" href="/vin/{{ d.vin }}">{{ d.vin }}</a></td>
+    <td>{{ ORIGIN.get(d.origin_code, d.origin_code) }}</td><td><a class="text-fj" href="/vin/{{ d.vin }}">{{ d.vin }}</a></td>
   </tr>
   {% endfor %}
   </tbody>

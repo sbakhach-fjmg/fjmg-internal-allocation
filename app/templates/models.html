@@ -12,8 +12,8 @@
     <option value="{{v}}" {{ 'selected' if v==level }}>{{l}}</option>{% endfor %}</select></label>
   <label>Body<br><select name="body" class="border rounded px-2 py-1"><option value="all">All</option>{% for b in bodies %}<option value="{{b}}" {{ 'selected' if b==body }}>{{b}}</option>{% endfor %}</select></label>
   <label>Min deals<br><input name="min_n" type="number" value="{{min_n}}" min="1" class="border rounded px-2 py-1 w-20"></label>
-  <button class="bg-slate-900 text-white rounded px-3 py-1.5">Apply</button>
-  <a href="/export.xlsx?make={{make}}" class="ml-auto text-sky-700 hover:underline">Download workbook{% if make!='all' %} ({{make|t}}){% endif %}</a>
+  <button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5">Apply</button>
+  <a href="/export.xlsx?make={{make}}" class="ml-auto text-fj hover:underline">Download workbook{% if make!='all' %} ({{make|t}}){% endif %}</a>
 </form>
 
 <div class="mb-2">{{ logic_line(logic) }}</div>

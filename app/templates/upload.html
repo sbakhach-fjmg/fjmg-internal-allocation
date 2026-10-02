@@ -3,44 +3,44 @@
 {% block body %}
 <h1 class="text-2xl font-semibold mb-4">Data</h1>
 <div class="grid lg:grid-cols-2 gap-6">
-  <div class="rounded border bg-white p-5">
+  <div class="rounded border border-slate-200 bg-white p-5">
     <h2 class="font-semibold mb-2">Upload the Advent sales export</h2>
     <p class="text-sm text-slate-500 mb-3">The group-wide <code>inventory_sales_report.xlsx</code> (the <em>sales</em> sheet). Only used Retail/Lease deals from active stores are kept; re-uploading overlaps is safe (deals are keyed on store + deal number + VIN).</p>
     <form method="post" action="/upload" enctype="multipart/form-data" class="space-y-3 text-sm">
       <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
       <label class="block"><input type="checkbox" name="decode" value="1" checked> Decode new VINs with MarketCheck after loading</label>
-      <button class="bg-slate-900 text-white rounded px-4 py-2">Upload</button>
+      <button class="bg-fj hover:bg-fj-dark text-white rounded px-4 py-2">Upload</button>
     </form>
   </div>
 
-  <div class="rounded border bg-white p-5">
+  <div class="rounded border border-slate-200 bg-white p-5">
     <h2 class="font-semibold mb-2">MarketCheck VIN decode</h2>
     <div class="text-sm space-y-1">
       <div>{{ dc.decoded|num }} decoded · {{ dc.pending|num }} pending · {{ dc.errors|num }} failed · of {{ dc.vins|num }} VINs</div>
       <div class="text-slate-500">Key: {{ 'set' if mc.key else 'missing' }} · Quota: {{ mc.quota_remaining or '?' }}/{{ mc.quota_limit or '?' }} remaining{% if mc.quota_reset %}, resets {{ mc.quota_reset }}{% endif %} · calls this session: {{ mc.calls_this_process }}</div>
       {% if mc.blocked %}<div class="text-rose-700">Quota exhausted until {{ mc.blocked_until }}.</div>{% endif %}
-      {% if job.status == 'running' %}<div class="text-amber-700 animate-pulse">Running: {{ job.done }}/{{ job.todo }} ({{ job.ok }} ok, {{ job.errors }} failed) since {{ job.started }}</div>
-      {% elif job.status == 'done' %}<div class="text-emerald-700">Last run: {{ job.done }} decoded ({{ job.ok }} ok, {{ job.errors }} failed){% if job.stopped %} · stopped: {{ job.stopped }}{% endif %}</div>
+      {% if job.status == 'running' %}<div class="text-fj-dark animate-pulse">Running: {{ job.done }}/{{ job.todo }} ({{ job.ok }} ok, {{ job.errors }} failed) since {{ job.started }}</div>
+      {% elif job.status == 'done' %}<div class="text-fj-dark">Last run: {{ job.done }} decoded ({{ job.ok }} ok, {{ job.errors }} failed){% if job.stopped %} · stopped: {{ job.stopped }}{% endif %}</div>
       {% elif job.status == 'error' %}<div class="text-rose-700">Last run failed: {{ job.error }}</div>{% endif %}
     </div>
     <div class="flex gap-3 mt-3 text-sm">
-      <form method="post" action="/decode/start" class="flex items-center gap-2"><input name="limit" type="number" placeholder="limit" class="border rounded px-2 py-1 w-24"><button class="bg-slate-900 text-white rounded px-3 py-1.5" {{ 'disabled' if job.status=='running' }}>Decode pending VINs</button></form>
+      <form method="post" action="/decode/start" class="flex items-center gap-2"><input name="limit" type="number" placeholder="limit" class="border rounded px-2 py-1 w-24"><button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5" {{ 'disabled' if job.status=='running' }}>Decode pending VINs</button></form>
       {% if job.status=='running' %}<form method="post" action="/decode/stop"><button class="text-rose-700">Stop</button></form>{% endif %}
-      <a href="/decode/status" class="text-sky-700 self-center">status json</a>
+      <a href="/decode/status" class="text-fj self-center">status json</a>
     </div>
     <script>if ({{ 'true' if job.status=='running' else 'false' }}) setTimeout(() => location.reload(), 8000);</script>
   </div>
 </div>
 
 <h2 class="font-semibold mt-8 mb-2">Loaded deals by store</h2>
-<div class="rounded border bg-white overflow-x-auto mb-8"><table class="tbl text-sm w-full">
+<div class="rounded border border-slate-200 bg-white overflow-x-auto mb-8"><table class="tbl text-sm w-full">
   <thead><tr class="text-left text-xs uppercase text-slate-500"><th>Store</th><th>Code</th><th class="text-right">Deals</th><th class="text-right">Lease</th><th>From</th><th>To</th></tr></thead>
   <tbody>{% for s in by_store %}<tr><td>{{ store_name(s.dealer_code) }}</td><td class="text-slate-500">{{ s.dealer_code }}</td><td class="text-right">{{ s.n }}</td><td class="text-right">{{ s.lease }}</td><td>{{ s.lo }}</td><td>{{ s.hi }}</td></tr>{% endfor %}
   {% if not by_store %}<tr><td colspan="6" class="text-slate-400 py-4 text-center">Nothing loaded yet.</td></tr>{% endif %}</tbody>
 </table></div>
 
 <h2 class="font-semibold mb-2">Uploads</h2>
-<div class="rounded border bg-white overflow-x-auto"><table class="tbl text-sm w-full">
+<div class="rounded border border-slate-200 bg-white overflow-x-auto"><table class="tbl text-sm w-full">
   <thead><tr class="text-left text-xs uppercase text-slate-500"><th>When</th><th>File</th><th class="text-right">Rows</th><th class="text-right">Used</th><th class="text-right">Kept</th><th>Sold range</th><th>Detail</th></tr></thead>
   <tbody>{% for u in uploads %}<tr><td>{{ u.uploaded_at }}</td><td>{{ u.filename }}</td><td class="text-right">{{ u.rows_total }}</td><td class="text-right">{{ u.rows_used }}</td><td class="text-right">{{ u.rows_kept }}</td><td>{{ u.sold_min }} → {{ u.sold_max }}</td><td class="text-xs text-slate-500">{{ u.stats }}</td></tr>{% endfor %}
   {% if not uploads %}<tr><td colspan="7" class="text-slate-400 py-4 text-center">No uploads yet.</td></tr>{% endif %}</tbody>
