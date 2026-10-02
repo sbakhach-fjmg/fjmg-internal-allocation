@@ -81,7 +81,7 @@ def norm_power(v) -> str:
 
 _BODY_WORDS = ("Sedan", "Coupe", "Cabriolet", "Convertible", "Wagon", "Hatchback", "Roadster")
 _DRIVE_TOKENS = re.compile(r"\b(4MATIC\+?|4Matic\+?|AWD|4WD|RWD|FWD|4x4|4X4)\b")
-_MB_TRIM = re.compile(r"^(AMG\s+)?([A-Z]{1,3})\s?(\d{2,3})(\+?)(\b|$)")
+_MB_TRIM = re.compile(r"^(AMG\s+)?([A-Z]{1,3})\s?(\d{2,3})(\+?)([a-z]?)(\b|$)")
 
 
 def clean_model(make: str, model: str) -> str:
@@ -104,7 +104,7 @@ def clean_trim(make: str, trim, version) -> str:
         t = _DRIVE_TOKENS.sub("", t).replace("  ", " ").strip(" -")
         m = _MB_TRIM.match(t)
         if m:
-            t = f"{m.group(1) or ''}{m.group(2)} {m.group(3)}{m.group(4)}{t[m.end():]}".strip()
+            t = f"{m.group(1) or ''}{m.group(2)} {m.group(3)}{m.group(4)}{m.group(5)}{t[m.end():]}".strip()
         t = t.replace("Mercedes-AMG ", "AMG ")
     if not t:
         t = v or UNKNOWN
