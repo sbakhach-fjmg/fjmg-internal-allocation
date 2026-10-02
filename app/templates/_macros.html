@@ -7,7 +7,7 @@ Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another sto
 {%- endmacro %}
 
 {% macro info(text) -%}
-<span class="relative inline-block align-middle ml-2 group"><span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-fj text-fj text-[10px] font-semibold leading-none cursor-help select-none" aria-label="Info">i</span><span class="hidden group-hover:block absolute left-0 top-6 z-20 w-80 rounded border border-slate-200 bg-white p-3 text-xs font-normal normal-case tracking-normal text-slate-600 shadow-lg">{{ text|safe }}</span></span>
+<span class="relative inline-block align-middle ml-2 group"><span tabindex="0" role="button" class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-fj text-fj text-[10px] font-semibold leading-none cursor-help select-none hover:bg-fj hover:text-white focus:bg-fj focus:text-white focus:outline-none" aria-label="Info">i</span><span class="hidden group-hover:block group-focus-within:block absolute left-0 top-6 z-20 w-80 rounded border border-slate-200 bg-white p-3 text-xs font-normal normal-case tracking-normal text-slate-600 shadow-lg">{{ text|safe }}</span></span>
 {%- endmacro %}
 
 {% macro logic_line(logic) -%}
