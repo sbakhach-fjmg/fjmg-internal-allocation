@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "fj-used-sales", "runtimeExecutable": ".venv/bin/uvicorn", "runtimeArgs": ["app.main:app", "--port", "8010", "--reload"], "port": 8010 }
+  ]
+}

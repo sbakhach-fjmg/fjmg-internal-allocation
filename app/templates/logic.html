@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Logic · FJ Used Sales{% endblock %}
+{% block body %}
+<h1 class="text-2xl font-semibold mb-1">Logic</h1>
+<p class="text-sm text-slate-500 mb-5">Choose what decides the #1 store for a car. Your choice is remembered in this browser and applies to the Stores, Models, Placement and VIN pages and the Excel exports. Data is always used retail + lease deals from active stores within the rolling {{ANALYSIS_MONTHS}}-month window.</p>
+
+<form method="post" action="/logic" class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 space-y-2">
+    {% for key, (label, desc, col, asc) in CRITERIA.items() %}
+    <label class="flex gap-3 rounded border bg-white p-4 cursor-pointer {{ 'ring-2 ring-amber-400' if logic.rank_by==key }}">
+      <input type="radio" name="rank_by" value="{{key}}" {{ 'checked' if logic.rank_by==key }} class="mt-1">
+      <div><div class="font-medium">{{label}}{% if key=='volume' %} <span class="text-xs text-amber-700">default</span>{% endif %}</div>
+        <div class="text-sm text-slate-600">{{desc}}</div></div>
+    </label>
+    {% endfor %}
+  </div>
+
+  <div class="space-y-4">
+    <div class="rounded border bg-white p-4 text-sm space-y-3">
+      <div class="font-medium">Thresholds</div>
+      <label class="block">Min deals for a store to be ranked<br><input name="min_store" type="number" min="1" value="{{logic.min_store}}" class="border rounded px-2 py-1 w-24"></label>
+      <label class="block">Min deals for a cohort level to be trusted (Placement)<br><input name="min_cohort" type="number" min="1" value="{{logic.min_cohort}}" class="border rounded px-2 py-1 w-24"></label>
+      <label class="block">Shrinkage weight K <span class="text-slate-400">(a store with K deals is weighted 50/50 with the cohort mean)</span><br><input name="k" type="number" min="0" step="1" value="{{logic.k|int}}" class="border rounded px-2 py-1 w-24"></label>
+      <div class="font-medium pt-2">Gross override (used by "Most units sold")</div>
+      <label class="block">Challenger must beat the leader's adj total gross by at least<br><input name="over_pct" type="number" min="0" step="5" value="{{(logic.over_pct*100)|int}}" class="border rounded px-2 py-1 w-24"> %</label>
+      <label class="block">…and by at least $<input name="over_abs" type="number" min="0" step="100" value="{{logic.over_abs|int}}" class="border rounded px-2 py-1 w-28"> per unit</label>
+      <label class="block">…with at least <input name="min_best" type="number" min="1" value="{{logic.min_best}}" class="border rounded px-2 py-1 w-20"> sales of its own</label>
+    </div>
+    <button class="bg-slate-900 text-white rounded px-4 py-2">Save</button>
+    <a href="/logic/reset" class="ml-3 text-sm text-slate-500 hover:underline">Reset to defaults</a>
+  </div>
+</form>
+
+<h2 class="text-lg font-semibold mt-10 mb-2">How the numbers are built</h2>
+<div class="grid md:grid-cols-2 gap-4 text-sm">
+  <div class="rounded border bg-white p-4 space-y-2">
+    <div class="font-medium">Data</div>
+    <p>Advent sales export, <em>sales</em> sheet. Used · Retail or Lease · active stores only. Wholesale deals and former stores are dropped. Deals are keyed on store + deal number + VIN so monthly re-uploads merge; the analysis uses the last {{ANALYSIS_MONTHS}} months ending at the newest sale.</p>
+    <div class="font-medium pt-2">Spec</div>
+    <p>Every VIN is decoded once with MarketCheck NeoVIN and cached: model, trim, body, drivetrain, powertrain, exterior color, MSRP. Year and make come from Advent. Mileage bands: 0-10k · 10-20k · 20-35k · 35-50k · 50-75k · 75-100k · 100k+. Spec = drivetrain · powertrain.</p>
+    <div class="font-medium pt-2">Matching (Placement)</div>
+    <p>A VIN is matched to the most specific cohort with at least the cohort minimum of deals, in this order:</p>
+    <ol class="list-decimal ml-5">{% for label, keys in LEVELS %}<li>{{label}}</li>{% endfor %}</ol>
+  </div>
+  <div class="rounded border bg-white p-4 space-y-2">
+    <div class="font-medium">Per-store figures</div>
+    <p><b>Avg front / back / total</b> — plain averages of the store's deals in the cohort. Total = front + back.</p>
+    <p><b>Adj</b> — the same average shrunk toward the cohort-wide mean: <code>(n × store avg + K × cohort avg) / (n + K)</code>. With K = {{logic.k|int}}, a store with {{logic.k|int}} deals is weighted half on its own numbers; with 3 deals mostly on the group's.</p>
+    <p><b>Med days / Adj days</b> — median and shrunk average of receive → sold days (clipped to 1–365).</p>
+    <p><b>Gross / slot / yr</b> — adj total × 365 / adj days (days floored at {{MIN_DAYS}}).</p>
+    <p><b>Similar</b> — for the vehicle being placed, each of the store's sold units scores (matching attributes ÷ attributes known) across trim, drivetrain, powertrain, body, mileage band, color and year; the store's figure is the sum, i.e. a count of look-alike units.</p>
+    <p><b>Ranked / thin</b> — a store needs {{logic.min_store}} deals in the cohort to be ranked; thinner stores are listed but greyed out.</p>
+  </div>
+</div>
+{% endblock %}

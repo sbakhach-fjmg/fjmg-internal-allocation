@@ -1,0 +1,10 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · FJ Used Sales</title><script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center">
+<form method="post" action="/login" class="bg-white rounded-lg shadow p-8 w-80 space-y-4">
+  <div class="font-semibold text-lg">FJ <span class="text-slate-500">Used Sales</span></div>
+  <input type="hidden" name="next" value="{{next}}">
+  <input type="password" name="password" placeholder="Password" autofocus class="w-full border rounded px-3 py-2">
+  {% if error %}<div class="text-sm text-rose-600">Wrong password.</div>{% endif %}
+  <button class="w-full bg-slate-900 text-white rounded py-2">Sign in</button>
+</form></body></html>

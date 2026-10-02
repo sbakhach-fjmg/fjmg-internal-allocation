@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% from "_macros.html" import gross, matrix_table, logic_line %}
+{% block title %}Models · FJ Used Sales{% endblock %}
+{% block body %}
+<h1 class="text-2xl font-semibold mb-1">What sells best where</h1>
+<p class="text-sm text-slate-500 mb-4">Each row is a cohort; each store cell shows units sold, average total gross and median days to sell. Green = #1 store for that cohort under the Logic tab's criterion. Click a model for year / trim / mileage / spec breakdowns.</p>
+
+<form class="flex flex-wrap items-end gap-3 mb-4 text-sm">
+  <label>Make<br><select name="make" class="border rounded px-2 py-1">
+    <option value="all">All makes</option>{% for mk, n in makes %}<option value="{{mk}}" {{ 'selected' if mk==make }}>{{ mk|t }} ({{n}})</option>{% endfor %}</select></label>
+  <label>Group by<br><select name="level" class="border rounded px-2 py-1">
+    {% for v,l in [("model","Model"),("trim","Model · Trim"),("year","Year · Model"),("miles","Model · Mileage band"),("spec","Model · Spec"),("body","Make · Body")] %}
+    <option value="{{v}}" {{ 'selected' if v==level }}>{{l}}</option>{% endfor %}</select></label>
+  <label>Body<br><select name="body" class="border rounded px-2 py-1"><option value="all">All</option>{% for b in bodies %}<option value="{{b}}" {{ 'selected' if b==body }}>{{b}}</option>{% endfor %}</select></label>
+  <label>Min deals<br><input name="min_n" type="number" value="{{min_n}}" min="1" class="border rounded px-2 py-1 w-20"></label>
+  <button class="bg-slate-900 text-white rounded px-3 py-1.5">Apply</button>
+  <a href="/export.xlsx?make={{make}}" class="ml-auto text-sky-700 hover:underline">Download workbook{% if make!='all' %} ({{make|t}}){% endif %}</a>
+</form>
+
+<div class="mb-2">{{ logic_line(logic) }}</div>
+<div class="text-xs text-slate-500 mb-2">{{ m.rows|length }} cohorts · stores: {% for c in m.stores %}<span title="{{ m.store_names[c] }}" class="mr-2">{{c}}</span>{% endfor %}</div>
+{{ matrix_table(m, link_model=True) }}
+{% endblock %}

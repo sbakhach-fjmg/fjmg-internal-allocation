@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% from "_macros.html" import gross, store_rank_table, logic_line %}
+{% block title %}Placement · FJ Used Sales{% endblock %}
+{% block body %}
+<h1 class="text-2xl font-semibold mb-1">Weekly placement</h1>
+<p class="text-sm text-slate-500 mb-4">Paste this week's list (one per line: <code>VIN mileage</code>) or upload a sheet with VIN and Mileage columns. Each VIN is decoded through MarketCheck, matched to the most specific cohort with enough retail history, and the stores are ranked by the criterion chosen on the Logic tab.</p>
+{{ logic_line(logic) }}
+
+<form method="post" action="/placement" enctype="multipart/form-data" class="grid md:grid-cols-3 gap-4 mb-6">
+  <textarea name="text" rows="8" placeholder="W1K6G8CB7RA271460 11729&#10;WAUEAAF44NN007592 39031" class="md:col-span-2 border rounded p-3 font-mono text-sm">{{ text }}</textarea>
+  <div class="space-y-3 text-sm">
+    <label class="block">Or upload xlsx / csv<br><input type="file" name="file" accept=".xlsx,.xls,.csv" class="mt-1"></label>
+    <button class="bg-slate-900 text-white rounded px-4 py-2">Recommend stores</button>
+    {% if results %}<form method="post" action="/placement/export"><input type="hidden" name="text" value="{{ text }}"><button class="text-sky-700 hover:underline">Download as Excel</button></form>{% endif %}
+    <p class="text-xs text-slate-500">Matching order: year · model · trim · miles · spec → drop spec → drop miles → drop year → model → make · body → make. Needs ≥{{MIN_N_COHORT}} deals at a level and ≥{{MIN_N_STORE}} at a store.</p>
+  </div>
+</form>
+{% if error %}<div class="mb-4 rounded border border-rose-200 bg-rose-50 text-rose-800 px-4 py-2 text-sm">{{ error }}</div>{% endif %}
+
+{% if results is not none %}
+<div class="mb-3 text-sm text-slate-500">{{ results|length }} vehicles</div>
+
+{# summary table #}
+<div class="overflow-x-auto rounded border bg-white mb-8">
+<table class="tbl text-sm border-collapse w-full">
+  <thead><tr class="text-left text-xs uppercase text-slate-500"><th>VIN</th><th>Vehicle</th><th class="text-right">Miles</th><th>Matched on</th><th class="text-right">History</th>
+    <th>#1 store</th><th class="text-right">Adj total</th><th class="text-right">Adj days</th><th>#2</th><th>#3</th></tr></thead>
+  <tbody>
+  {% for r in results %}
+  <tr>
+    <td><a class="text-sky-700" href="/vin/{{ r.vin }}{% if r.mileage %}?mileage={{ r.mileage }}{% endif %}">{{ r.vin or r.raw }}</a></td>
+    {% if r.veh %}<td>{{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} <span class="text-slate-500">{{ r.veh.trim }} · {{ r.veh.spec }} · {{ r.veh.body }}</span></td>{% else %}<td class="text-slate-400">–</td>{% endif %}
+    <td class="text-right">{{ r.mileage|num }} <span class="text-xs text-slate-400">{{ r.veh.mileage_band if r.veh }}</span></td>
+    {% if r.rec %}
+      <td class="text-xs">{{ r.rec.level }}</td><td class="text-right">{{ r.rec.n }}</td>
+      {% set ranked = r.table|selectattr('ranked')|list %}
+      <td class="font-medium bg-emerald-50">{{ ranked[0].store_name }} <span class="text-xs text-slate-500">n={{ ranked[0].n }}</span></td>
+      <td class="text-right bg-emerald-50">{{ gross(ranked[0].total_hat) }}</td><td class="text-right bg-emerald-50">{{ ranked[0].days_hat|num }}</td>
+      <td class="text-xs">{% if ranked|length > 1 %}{{ ranked[1].store }} · {{ gross(ranked[1].total_hat) }} · {{ ranked[1].days_hat|num }}d{% endif %}</td>
+      <td class="text-xs">{% if ranked|length > 2 %}{{ ranked[2].store }} · {{ gross(ranked[2].total_hat) }} · {{ ranked[2].days_hat|num }}d{% endif %}</td>
+    {% else %}<td colspan="7" class="text-rose-700 text-xs">{{ r.error }}</td>{% endif %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{# per-vehicle detail #}
+{% for r in results if r.rec %}
+<details class="mb-3 rounded border bg-white">
+  <summary class="cursor-pointer px-4 py-2 text-sm"><span class="font-medium">{{ r.vin }}</span> · {{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} {{ r.veh.trim }} · matched on <em>{{ r.rec.level }}</em> ({{ r.rec.n }} deals)
+    {% if r.history %} · <span class="text-amber-700">sold by us before: {{ r.history[0].dealer_code }} {{ r.history[0].sold_date }} {{ gross(r.history[0].total_gross) }}</span>{% endif %}</summary>
+  <div class="px-4 pb-4 overflow-x-auto">{{ store_rank_table(r.table, logic, show_similar=True) }}</div>
+</details>
+{% endfor %}
+{% endif %}
+{% endblock %}
