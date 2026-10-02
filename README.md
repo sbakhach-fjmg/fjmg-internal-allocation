@@ -14,7 +14,7 @@ Separate from every other FJ tool: its own code, database, MarketCheck cache and
    re-uploading each month just merges; the analysis uses a rolling window (`ANALYSIS_MONTHS`, default 6)
    ending at the newest sold date.
 2. **Decode** every VIN once with MarketCheck NeoVIN: model, trim, body, drivetrain, powertrain,
-   colors, MSRP. Cached forever in `vin_specs`; only new VINs cost API calls. The backfill runs in the
+   colors, MSRP, and factory package names (Night Package, Premium Package, AMG Line, ...). Cached forever in `vin_specs`; only new VINs cost API calls. The backfill runs in the
    background after an upload (or from the Data page) and stops cleanly if the monthly quota runs out.
 3. **Analyze** cohorts (year · make · model · trim · mileage band · spec) by store:
    - *Adj total* — average total deal gross (front + back), shrunk toward the cohort mean with prior
@@ -31,8 +31,9 @@ Separate from every other FJ tool: its own code, database, MarketCheck cache and
 5. **Place** this week's list: each VIN is decoded, matched to the most specific cohort with enough
    history (`MIN_N_COHORT` deals, `MIN_N_STORE` at a store), and the stores are ranked. Export to Excel.
 
-Pages: **Stores** (store summary, where each store wins, units by month) · **Models** (cohort × store
-matrix at any grouping) · model detail (year / trim / mileage / spec / color breakdowns) · **Placement**
+Pages (in nav order): **Placement** (home) · **Models** (cohort × store matrix, filter by year / make /
+model, group by model / trim / year / miles / spec) · model detail (year / trim / mileage / spec / body /
+color / factory package breakdowns) · **Stores** (store summary, where each store wins, units by month)
 · **Logic** (ranking criterion + thresholds + formulas) · **Data** (uploads, decode status/quota) · `/vin/<VIN>` lookup · `/export.xlsx` full analysis workbook.
 
 ## Run locally

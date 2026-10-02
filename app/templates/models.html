@@ -4,12 +4,13 @@
 <h1 class="text-2xl font-semibold mb-4">What sells best where {{ info("Each row is a cohort; each store cell shows units sold · average total gross · median days to sell. Blue = #1 store for that cohort. Click a model for year / trim / mileage / spec breakdowns. " ~ logic_text(logic)) }}</h1>
 
 <form class="flex flex-wrap items-end gap-3 mb-4 text-sm">
-  <label>Make<br><select name="make" class="border rounded px-2 py-1">
+  <label>Year<br><select name="year" class="border rounded px-2 py-1"><option value="all">All years</option>{% for y in years %}<option value="{{y}}" {{ 'selected' if year|string==y|string }}>{{y}}</option>{% endfor %}</select></label>
+  <label>Make<br><select name="make" onchange="this.form.model.value='all';this.form.submit()" class="border rounded px-2 py-1">
     <option value="all">All makes</option>{% for mk, n in makes %}<option value="{{mk}}" {{ 'selected' if mk==make }}>{{ mk|t }} ({{n}})</option>{% endfor %}</select></label>
+  <label>Model<br><select name="model" class="border rounded px-2 py-1 max-w-[16rem]"><option value="all">All models</option>{% for mo, n in models_list %}<option value="{{mo}}" {{ 'selected' if mo==model }}>{{mo}} ({{n}})</option>{% endfor %}</select></label>
   <label>Group by<br><select name="level" class="border rounded px-2 py-1">
     {% for v,l in [("model","Model"),("trim","Model · Trim"),("year","Year · Model"),("miles","Model · Mileage band"),("spec","Model · Spec"),("body","Make · Body")] %}
     <option value="{{v}}" {{ 'selected' if v==level }}>{{l}}</option>{% endfor %}</select></label>
-  <label>Body<br><select name="body" class="border rounded px-2 py-1"><option value="all">All</option>{% for b in bodies %}<option value="{{b}}" {{ 'selected' if b==body }}>{{b}}</option>{% endfor %}</select></label>
   <label>Min deals<br><input name="min_n" type="number" value="{{min_n}}" min="1" class="border rounded px-2 py-1 w-20"></label>
   <button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5">Apply</button>
   <a href="/export.xlsx?make={{make}}" class="ml-auto text-fj hover:underline">Download workbook{% if make!='all' %} ({{make|t}}){% endif %}</a>

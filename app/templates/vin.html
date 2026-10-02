@@ -11,6 +11,7 @@
   <div class="rounded border border-slate-200 bg-white p-3"><div class="text-xs uppercase text-slate-500">{{ label }}</div><div>{{ val or '–' }}</div></div>
   {% endfor %}
 </div>
+{% if s.packages_list %}<div class="rounded border border-slate-200 bg-white p-3 text-sm mb-6"><div class="text-xs uppercase text-slate-500 mb-1">Factory packages</div>{% for pk in s.packages_list %}<span class="inline-block rounded bg-fj-light text-fj-dark px-2 py-0.5 mr-1 mb-1 text-xs">{{ pk }}</span>{% endfor %}</div>{% endif %}
 <form class="mb-6 text-sm flex items-end gap-2"><label>Mileage for placement<br><input name="mileage" type="number" value="{{ mileage or '' }}" class="border rounded px-2 py-1 w-32"></label><button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5">Re-run</button></form>
 {% endif %}
 

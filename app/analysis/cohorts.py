@@ -19,6 +19,7 @@ The recommender walks LEVELS from specific to broad and stops at the first level
 (min_cohort deals) and at least one store with min_store deals.
 """
 from __future__ import annotations
+import json
 import math
 from dataclasses import dataclass, asdict
 from typing import Optional
@@ -36,7 +37,7 @@ LEVELS = [
     ("Make · Body", ["make", "body"]),
     ("Make", ["make"]),
 ]
-SPEC_KEYS = ["year", "make", "model", "trim", "version", "body_type", "vehicle_type", "drivetrain", "powertrain_type", "ext_base", "msrp", "error"]
+SPEC_KEYS = ["year", "make", "model", "trim", "version", "body_type", "vehicle_type", "drivetrain", "powertrain_type", "ext_base", "msrp", "error", "packages"]
 SIM_ATTRS = ["trim", "drivetrain", "powertrain", "body", "mileage_band", "ext_base", "year"]
 
 # key -> (label, one-line description, sort column, ascending?)
@@ -118,6 +119,7 @@ def load_frame(con) -> pd.DataFrame:
         canon.append(canonical(rec, spec))
     df = df.rename(columns={"year": "adv_year", "make": "adv_make", "model": "adv_model"})
     df = pd.concat([df.reset_index(drop=True), pd.DataFrame(canon)], axis=1)
+    df["packages"] = [json.loads(v) if isinstance(v, str) and v.startswith("[") else [] for v in df["s_packages"]]
     df["sold"] = pd.to_datetime(df["sold_date"], errors="coerce")
     df["month"] = df["sold"].dt.to_period("M").astype(str)
     df["store_name"] = df["dealer_code"].map(store_name)
@@ -295,6 +297,16 @@ def matrix(df: pd.DataFrame, keys: list, min_n: int = 3, filters: Optional[dict]
     else:
         rows.sort(key=lambda x: -x["n"])
     return {"cols": keys, "stores": stores, "store_names": {c: store_name(c) for c in stores}, "rows": rows}
+
+
+def package_matrix(sub: pd.DataFrame, min_n: int = 3, logic: Logic = DEFAULT) -> dict:
+    """Factory packages x store for the deals in `sub` (a unit with three packages counts in three rows)."""
+    cols = ["dealer_code", "sale_type", "total_gross", "front_gross", "back_gross", "days_to_sell", "days_c", "sold_price", "mileage", "packages"]
+    ex = sub[cols].explode("packages")
+    ex = ex[ex["packages"].notna() & (ex["packages"].astype(str) != "")].rename(columns={"packages": "package"})
+    if ex.empty:
+        return {"cols": ["package"], "stores": [], "store_names": {}, "rows": []}
+    return matrix(ex, ["package"], min_n=min_n, logic=logic)
 
 
 def store_strengths(df: pd.DataFrame, min_n: int = 4, logic: Logic = DEFAULT) -> dict:

@@ -170,7 +170,7 @@ def logout():
 
 
 # ---------------------------------------------------------------- pages
-@app.get("/", response_class=HTMLResponse)
+@app.get("/stores", response_class=HTMLResponse)
 def overview(request: Request):
     df = frame()
     if df.empty:
@@ -184,15 +184,20 @@ def overview(request: Request):
 
 
 @app.get("/models", response_class=HTMLResponse)
-def models(request: Request, make: str = "all", level: str = "model", min_n: int = 3, body: str = "all"):
+def models(request: Request, make: str = "all", model: str = "all", year: str = "all", level: str = "model", min_n: int = 3):
     df = frame()
     if df.empty:
         return RedirectResponse(url="/upload", status_code=303)
     keys = {"model": ["make", "model"], "trim": ["make", "model", "trim"], "year": ["year", "make", "model"],
             "miles": ["make", "model", "mileage_band"], "spec": ["make", "model", "spec"], "body": ["make", "body"]}.get(level, ["make", "model"])
-    m = co.matrix(df, keys, min_n=min_n, filters={"make": make, "body": body}, logic=get_logic(request))
-    return templates.TemplateResponse("models.html", ctx(request, m=m, make=make, level=level, min_n=min_n, body=body,
-                                                         makes=co.make_list(df), bodies=sorted(df["body"].dropna().unique())))
+    scope = df if make == "all" else df[df["make"] == make]
+    models_list = [(k, int(n)) for k, n in scope.groupby("model").size().sort_values(ascending=False).items()]
+    if model != "all" and model not in {k for k, _ in models_list}:
+        model = "all"
+    m = co.matrix(df, keys, min_n=min_n, filters={"make": make, "model": model, "year": year}, logic=get_logic(request))
+    years = sorted({int(y) for y in df["year"].dropna().unique() if y}, reverse=True)
+    return templates.TemplateResponse("models.html", ctx(request, m=m, make=make, model=model, year=year, level=level, min_n=min_n,
+                                                         makes=co.make_list(df), models_list=models_list, years=years))
 
 
 @app.get("/model", response_class=HTMLResponse)
@@ -206,7 +211,7 @@ def model_detail(request: Request, make: str, model: str):
     mx = lambda keys: co.matrix(sub, keys, min_n=2, logic=logic)  # noqa: E731
     sections = [("By year", mx(["year"])), ("By trim", mx(["trim"])), ("By mileage band", mx(["mileage_band"])),
                 ("By spec (drivetrain · powertrain)", mx(["spec"])), ("By body", mx(["body"])), ("By exterior color", mx(["ext_base"])),
-                ("Year · Trim · Miles", mx(["year", "trim", "mileage_band"]))]
+                ("Year · Trim · Miles", mx(["year", "trim", "mileage_band"])), ("By factory package", co.package_matrix(sub, min_n=3, logic=logic))]
     deals = sub.sort_values("sold", ascending=False)
     return templates.TemplateResponse("model.html", ctx(request, make=make, model=model, overall=overall.to_dict(orient="records"),
                                                         sections=sections, deals=deals.to_dict(orient="records"), n=len(sub),
@@ -266,6 +271,8 @@ def place(vehicles: list, logic: Logic) -> list:
                 results.append({**v, "error": "no VIN found on this line"})
                 continue
             spec = mc.decode_and_store(con, v["vin"])
+            pk = spec.get("packages")
+            spec["packages_list"] = json.loads(pk) if isinstance(pk, str) and pk.startswith("[") else []
             if spec.get("error"):
                 results.append({**v, "spec": spec, "error": f"decode failed: {spec['error']}"})
                 continue
@@ -278,11 +285,13 @@ def place(vehicles: list, logic: Logic) -> list:
     return results
 
 
+@app.get("/", response_class=HTMLResponse)
 @app.get("/placement", response_class=HTMLResponse)
 def placement_page(request: Request):
     return templates.TemplateResponse("placement.html", ctx(request, results=None, text="", error=None))
 
 
+@app.post("/")
 @app.post("/placement", response_class=HTMLResponse)
 async def placement_run(request: Request, text: str = Form(""), file: UploadFile = File(None)):
     vehicles = parse_vehicle_lines(text)
@@ -428,7 +437,7 @@ def _xlsx(sheets: dict, name: str) -> StreamingResponse:
 def _matrix_sheet(m: dict) -> pd.DataFrame:
     rows = []
     for r in m["rows"]:
-        row = {**{k.replace("_", " ").title(): f_title(v) for k, v in r["key"].items()}, "n": r["n"],
+        row = {**{k.replace("_", " ").title(): (f_title(v) if k == "make" else v) for k, v in r["key"].items()}, "n": r["n"],
                "Avg total gross": r["total"], "Avg front": r["front"], "Avg back": r["back"], "Median days": r["days"],
                "#1 store": r["best"]["store_name"] if r["best"] else None,
                "Best adj gross": round(r["best"]["total_hat"]) if r["best"] else None, "Best adj days": round(r["best"]["days_hat"]) if r["best"] else None,

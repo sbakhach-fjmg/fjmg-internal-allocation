@@ -9,19 +9,19 @@
 <div class="overflow-x-auto rounded border border-slate-200 bg-white mb-8">
 <table class="tbl text-sm w-full border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
-    <th>Store</th><th>Brand</th><th class="text-right">Sold</th><th class="text-right">Lease %</th>
+    <th>Store</th><th>Brand</th><th class="text-right">Sold</th>
     <th class="text-right">Avg front</th><th class="text-right">Avg back</th><th class="text-right">Avg total</th><th class="text-right">Total gross</th>
-    <th class="text-right">Med days</th><th class="text-right">Avg price</th><th class="text-right">Med miles</th><th class="text-right">Decoded</th><th>Top models</th>
+    <th class="text-right">Med days</th><th class="text-right">Avg price</th><th class="text-right">Med miles</th><th>Top models</th>
   </tr></thead>
   <tbody>
   {% for s in stores %}
   <tr>
     <td class="font-medium">{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span></td>
     <td class="text-slate-500">{{ s.brand }}</td>
-    <td class="text-right">{{ s.n }}</td><td class="text-right text-slate-500">{{ s.lease_share|pct }}</td>
+    <td class="text-right">{{ s.n }}</td>
     <td class="text-right">{{ gross(s.front) }}</td><td class="text-right">{{ gross(s.back) }}</td><td class="text-right font-medium">{{ gross(s.total) }}</td>
     <td class="text-right">{{ gross(s.total_sum) }}</td><td class="text-right">{{ s.days|num }}</td><td class="text-right">{{ s.price|money }}</td>
-    <td class="text-right">{{ s.miles|num }}</td><td class="text-right text-slate-500">{{ s.decoded|pct }}</td>
+    <td class="text-right">{{ s.miles|num }}</td>
     <td class="text-xs text-slate-600">{{ s.top|join(' · ') }}</td>
   </tr>
   {% endfor %}

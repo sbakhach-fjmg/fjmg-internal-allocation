@@ -118,7 +118,7 @@ def canonical(deal: dict, spec: dict) -> dict:
     decoded = bool(spec) and spec.get("error") is None and bool(spec.get("model"))
     if decoded:
         model = clean_model(make, spec.get("model"))
-        trim = clean_trim(make, spec.get("trim"), spec.get("version"))
+        trim = clean_trim(make, spec.get("trim"), spec.get("version")).upper()
         body = spec.get("body_type") or spec.get("vehicle_type") or UNKNOWN
         drive = norm_drive(spec.get("drivetrain"))
         power = norm_power(spec.get("powertrain_type"))
@@ -127,7 +127,7 @@ def canonical(deal: dict, spec: dict) -> dict:
         raw_model = deal.get("model") or UNKNOWN
         if "MERC" in make:
             mb = mb_from_code(raw_model)
-            model, trim, body, drive, power = mb["model"], mb["trim"], mb["body"], mb["drivetrain"], mb["powertrain"]
+            model, trim, body, drive, power = mb["model"], mb["trim"].upper(), mb["body"], mb["drivetrain"], mb["powertrain"]
         else:
             model, trim, body, drive, power = raw_model.title(), UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN
         ext = UNKNOWN

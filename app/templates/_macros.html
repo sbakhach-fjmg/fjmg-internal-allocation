@@ -19,7 +19,7 @@ Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another sto
 <table class="tbl text-sm w-full border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
     <th>#</th><th>Store</th>
-    <th class="text-right {{ 'text-slate-900' if hl=='n' }}">Sold</th><th class="text-right">Lease %</th>
+    <th class="text-right {{ 'text-slate-900' if hl=='n' }}">Sold</th>
     {% if show_similar %}<th class="text-right {{ 'text-slate-900' if hl=='similar' }}" title="Count of look-alike units (attribute overlap with the vehicle being placed)">Similar</th>{% endif %}
     <th class="text-right">Avg front</th><th class="text-right {{ 'text-slate-900' if hl=='front_hat' }}">Adj front</th>
     <th class="text-right">Avg back</th><th class="text-right {{ 'text-slate-900' if hl=='back_hat' }}">Adj back</th>
@@ -33,7 +33,7 @@ Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another sto
     <tr class="{{ 'bg-fj-light font-medium' if s.rank==1 else ('text-slate-400' if not s.ranked else '') }}">
       <td>{{ s.rank if s.rank else '·' }}</td>
       <td>{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span>{% if not s.ranked %} <span class="text-xs text-slate-400">thin</span>{% endif %}</td>
-      <td class="text-right {{ 'font-semibold' if hl=='n' }}">{{ s.n }}</td><td class="text-right text-slate-500">{{ s.lease_share|pct }}</td>
+      <td class="text-right {{ 'font-semibold' if hl=='n' }}">{{ s.n }}</td>
       {% if show_similar %}<td class="text-right {{ 'font-semibold' if hl=='similar' }}">{{ s.similar|num(1) }}</td>{% endif %}
       <td class="text-right">{{ gross(s.front) }}</td><td class="text-right {{ 'font-semibold' if hl=='front_hat' }}">{{ gross(s.front_hat) }}</td>
       <td class="text-right">{{ gross(s.back) }}</td><td class="text-right {{ 'font-semibold' if hl=='back_hat' }}">{{ gross(s.back_hat) }}</td>
@@ -53,15 +53,15 @@ Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another sto
   <thead><tr class="text-left text-xs uppercase text-slate-500">
     {% for k in m.cols %}<th>{{ k.replace('_',' ') }}</th>{% endfor %}
     <th class="text-right">Sold</th><th class="text-right">Avg total</th><th class="text-right">Med days</th>
-    <th>#1 store</th>
-    {% for c in m.stores %}<th class="cell text-right border-l" title="{{ m.store_names[c] }}">{{ c }}<div class="normal-case text-[10px] text-slate-400">n · gross · days</div></th>{% endfor %}
+    <th title="Store · units sold · adj total gross · adj days">#1 store</th>
+    {% for c in m.stores %}<th class="cell text-right border-l" title="{{ m.store_names[c] }}">{{ c }}<div class="normal-case text-[10px] text-slate-400">sold · avg gross · med days</div></th>{% endfor %}
   </tr></thead>
   <tbody>
   {% for r in m.rows %}
     <tr>
       {% for k in m.cols %}<td>
         {% if link_model and k=='model' %}<a class="text-fj hover:underline" href="/model?make={{ r.key.make|urlencode }}&model={{ r.key.model|urlencode }}">{{ r.key[k] }}</a>
-        {% else %}{{ r.key[k]|t }}{% endif %}</td>{% endfor %}
+        {% else %}{{ r.key[k]|t if k=='make' else r.key[k] }}{% endif %}</td>{% endfor %}
       <td class="text-right">{{ r.n }}</td>
       <td class="text-right">{{ gross(r.total) }}</td><td class="text-right">{{ r.days|num }}</td>
       <td>{% if r.best %}<span class="font-medium">{{ r.best.store }}</span> <span class="text-xs text-slate-500">{{ r.best.n }} · {{ gross(r.best.total_hat) }} · {{ r.best.days_hat|num }}d</span>{% else %}<span class="text-slate-400">–</span>{% endif %}</td>

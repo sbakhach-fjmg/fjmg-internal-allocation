@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS vin_specs (
   vin TEXT PRIMARY KEY, source TEXT, decoded_at TEXT, error TEXT,
   year INTEGER, make TEXT, model TEXT, trim TEXT, version TEXT, body_type TEXT, vehicle_type TEXT,
   drivetrain TEXT, transmission TEXT, engine TEXT, cylinders INTEGER, fuel_type TEXT, powertrain_type TEXT,
-  msrp REAL, ext_color TEXT, ext_base TEXT, int_color TEXT, int_base TEXT, raw TEXT);
+  msrp REAL, ext_color TEXT, ext_base TEXT, int_color TEXT, int_base TEXT, packages TEXT, raw TEXT);
 """
 
 
@@ -40,6 +40,9 @@ def connect() -> sqlite3.Connection:
 def init_db():
     with connect() as con:
         con.executescript(SCHEMA)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(vin_specs)")}
+        if "packages" not in cols:          # added after first release: factory package names from the decode
+            con.execute("ALTER TABLE vin_specs ADD COLUMN packages TEXT")
 
 
 @contextmanager

@@ -45,6 +45,7 @@
 {% for r in results if r.rec %}
 <details class="mb-3 rounded border border-slate-200 bg-white">
   <summary class="cursor-pointer px-4 py-2 text-sm"><span class="font-medium">{{ r.vin }}</span> · {{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} {{ r.veh.trim }} · matched on <em>{{ r.rec.level }}</em> ({{ r.rec.n }} deals)
+    {% if r.spec.packages_list %} · <span class="text-slate-500">{{ r.spec.packages_list|join(', ') }}</span>{% endif %}
     {% if r.history %} · <span class="text-fj-dark">sold by us before: {{ r.history[0].dealer_code }} {{ r.history[0].sold_date }} {{ gross(r.history[0].total_gross) }}</span>{% endif %}</summary>
   <div class="px-4 pb-4 overflow-x-auto">{{ store_rank_table(r.table, logic, show_similar=True) }}</div>
 </details>

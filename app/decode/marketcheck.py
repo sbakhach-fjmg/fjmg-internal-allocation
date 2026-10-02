@@ -123,6 +123,7 @@ def normalize(vin: str, d: dict) -> dict:
         year = int(year) if year else None
     except (TypeError, ValueError):
         year = None
+    packages = extract_packages(d)
     # keep the raw payload minus the bulky feature lists
     slim = {k: v for k, v in d.items() if k not in ("features", "high_value_features", "installed_equipment", "warranty")}
     return {
@@ -132,13 +133,24 @@ def normalize(vin: str, d: dict) -> dict:
         "transmission": g("transmission"), "engine": g("engine"), "cylinders": cyl, "fuel_type": g("fuel_type"),
         "powertrain_type": g("powertrain_type"), "msrp": msrp,
         "ext_color": ext, "ext_base": ext_base, "int_color": inte, "int_base": int_base,
-        "raw": json.dumps(slim, default=str),
+        "packages": json.dumps(packages), "raw": json.dumps(slim, default=str),
     }
+
+
+def extract_packages(d: dict) -> list:
+    """Factory package names (installed_options_details type 'P'), deduped, title-cased as MarketCheck gives them."""
+    out, seen = [], set()
+    for o in d.get("installed_options_details") or []:
+        if isinstance(o, dict) and o.get("type") == "P" and o.get("name"):
+            name = str(o["name"]).strip()
+            if name.lower() not in seen:
+                seen.add(name.lower()); out.append(name)
+    return out
 
 
 SPEC_COLS = ["vin", "source", "decoded_at", "error", "year", "make", "model", "trim", "version", "body_type", "vehicle_type",
              "drivetrain", "transmission", "engine", "cylinders", "fuel_type", "powertrain_type", "msrp",
-             "ext_color", "ext_base", "int_color", "int_base", "raw"]
+             "ext_color", "ext_base", "int_color", "int_base", "packages", "raw"]
 
 
 def upsert_spec(con, rec: dict):
