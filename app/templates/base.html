@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}FJ Used Sales{% endblock %}</title>
+<title>{% block title %}FJ Internal Allocation{% endblock %}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config={theme:{extend:{colors:{fj:{DEFAULT:'#009EDB',dark:'#007FB0',light:'#E6F5FC',mid:'#B3E2F5'}}}}}</script>
 <style>
@@ -17,7 +17,7 @@
 <body class="bg-white text-slate-800">
 <nav class="bg-fj text-white">
   <div class="max-w-screen-2xl mx-auto px-4 flex items-center gap-5 h-14">
-    <a href="/" class="font-semibold tracking-tight text-white whitespace-nowrap">FJ <span class="text-white/70">Used Sales</span></a>
+    <a href="/" class="font-semibold tracking-tight text-white whitespace-nowrap">FJ <span class="text-white/70">Internal Allocation</span></a>
     {% set nav=[("/","Stores"),("/models","Models"),("/placement","Placement"),("/logic","Logic"),("/upload","Data")] %}
     {% for href,label in nav %}<a href="{{href}}" class="text-sm hover:text-white {{ 'text-white border-b-2 border-white' if path==href or (href!='/' and path.startswith(href)) else 'text-white/75' }}">{{label}}</a>{% endfor %}
     <form onsubmit="location='/vin/'+this.v.value.trim().toUpperCase();return false" class="ml-2"><input name="v" placeholder="VIN lookup" class="bg-white/15 placeholder-white/60 text-white text-xs rounded px-2 py-1 w-44 border border-white/30"></form>

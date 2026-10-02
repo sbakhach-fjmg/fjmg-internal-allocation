@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% from "_macros.html" import gross, matrix_table, store_rank_table, logic_line %}
-{% block title %}{{ make|t }} {{ model }} · FJ Used Sales{% endblock %}
+{% block title %}{{ make|t }} {{ model }} · FJ Internal Allocation{% endblock %}
 {% block body %}
 <div class="mb-4"><a href="/models?make={{ make|urlencode }}" class="text-sm text-fj hover:underline">← {{ make|t }} models</a>
   <h1 class="text-2xl font-semibold">{{ make|t }} {{ model }}</h1>
