@@ -21,7 +21,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # Stores no longer with the group (their deals are dropped at ingest):
 EXCLUDED_STORES = {"WCPOR", "FRMBN", "AUDFR", "FRPOR"}
 STORES = {
-    "NBMBN": {"name": "Fletcher Jones Motorcars · Newport Beach", "zip": "92660", "brand": "Mercedes-Benz"},
+    "NBMBN": {"name": "Fletcher Jones Motorcars", "zip": "92660", "brand": "Mercedes-Benz"},
     "BHMBN": {"name": "Mercedes-Benz of Beverly Hills", "zip": "90210", "brand": "Mercedes-Benz"},
     "ONMBN": {"name": "Mercedes-Benz of Ontario", "zip": "91761", "brand": "Mercedes-Benz"},
     "LVMBN": {"name": "Fletcher Jones Imports · Las Vegas", "zip": "89117", "brand": "Mercedes-Benz"},
