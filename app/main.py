@@ -12,6 +12,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import (DATA_DIR, STORES, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
@@ -28,6 +29,7 @@ from app.auth import AuthMiddleware, password_ok, set_session, COOKIE
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="FJ Used Sales Analyzer")
 app.add_middleware(AuthMiddleware)
+app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 templates = Jinja2Templates(directory=BASE / "templates")
 init_db()
 

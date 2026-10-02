@@ -3,7 +3,8 @@
 <script>tailwind.config={theme:{extend:{colors:{fj:{DEFAULT:'#009EDB',dark:'#007FB0',light:'#E6F5FC'}}}}}</script></head>
 <body class="bg-fj min-h-screen flex items-center justify-center">
 <form method="post" action="/login" class="bg-white rounded-lg shadow p-8 w-80 space-y-4">
-  <div class="font-semibold text-lg">FJ <span class="text-slate-500">Internal Allocation</span></div>
+  <img src="/static/fj-logo.png" alt="Fletcher Jones Automotive Group" class="h-9 w-auto mx-auto">
+  <div class="font-semibold text-center text-slate-600">Internal Allocation</div>
   <input type="hidden" name="next" value="{{next}}">
   <input type="password" name="password" placeholder="Password" autofocus class="w-full border rounded px-3 py-2">
   {% if error %}<div class="text-sm text-rose-600">Wrong password.</div>{% endif %}
