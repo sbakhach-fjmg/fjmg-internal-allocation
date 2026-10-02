@@ -239,6 +239,29 @@ def similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
     return None if u is None else float(u.sum())
 
 
+SIM_LABELS = {"trim": "Trim", "drivetrain": "Drivetrain", "powertrain": "Powertrain", "body": "Body", "mileage_band": "Mileage band",
+              "ext_base": "Color", "year": "Year"}
+
+
+def sim_detail(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[dict]:
+    """What matched, for the Similar breakdown: per attribute the vehicle's value and how many of the store's
+    units share it; per factory package how many units carry it."""
+    if not vehicle:
+        return None
+    attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
+    pk = vehicle.get("packages") or []
+    if not attrs and not pk:
+        return None
+    out = {"n": int(len(g)), "attrs": [], "packages": [], "spec_weight": (1 - PACKAGE_WEIGHT) if pk else 1.0, "pkg_weight": PACKAGE_WEIGHT if pk else 0.0}
+    for a in attrs:
+        out["attrs"].append({"label": SIM_LABELS.get(a, a), "value": vehicle[a], "matched": int((g[a].astype(str) == str(vehicle[a])).sum())})
+    if pk and "packages" in g.columns:
+        for name in pk:
+            cnt = int(g["packages"].apply(lambda lst: any(str(x).lower() == str(name).lower() for x in (lst or []))).sum())
+            out["packages"].append({"name": name, "matched": cnt})
+    return out
+
+
 def options_match(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
     """Average share of the vehicle's factory packages found on the store's units (0..1)."""
     pk = (vehicle or {}).get("packages") or []
@@ -262,7 +285,7 @@ def store_table(sub: pd.DataFrame, logic: Logic = DEFAULT, vehicle: Optional[dic
                      "front_hat": _shrink(n, _mean(g["front_gross"]), pri["front"], k), "back_hat": _shrink(n, _mean(g["back_gross"]), pri["back"], k),
                      "total_hat": total_hat, "days": _median(g["days_to_sell"]), "days_hat": days_hat,
                      "annual": (total_hat or 0.0) * 365.0 / max(days_hat or pri["days"], MIN_DAYS),
-                     "similar": similarity(g, vehicle), "opt_match": options_match(g, vehicle),
+                     "similar": similarity(g, vehicle), "opt_match": options_match(g, vehicle), "sim_detail": sim_detail(g, vehicle),
                      "price": _mean(g["sold_price"]), "miles": _median(g["mileage"]), "lease_share": float((g["sale_type"] == "Lease").mean()),
                      "ranked": n >= logic.min_store})
     if not rows:

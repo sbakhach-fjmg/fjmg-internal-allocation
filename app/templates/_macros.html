@@ -14,7 +14,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
 <p class="text-xs text-slate-500">{{ logic_text(logic) }}</p>
 {%- endmacro %}
 
-{% macro store_rank_table(rows, logic, show_similar=False) -%}
+{% macro store_rank_table(rows, logic, show_similar=False, tid='t') -%}
 {% set hl = {'volume':'n','total':'total_hat','front':'front_hat','back':'back_hat','slot':'annual','days':'days_hat','similar':'similar'}[logic.rank_by] %}
 <table class="tbl text-sm w-full border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
@@ -34,7 +34,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
       <td>{{ s.rank if s.rank else '·' }}</td>
       <td>{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span>{% if not s.ranked %} <span class="text-xs text-slate-400">thin</span>{% endif %}</td>
       <td class="text-right {{ 'font-semibold' if hl=='n' }}">{{ s.n }}</td>
-      {% if show_similar %}<td class="text-right {{ 'font-semibold' if hl=='similar' }}">{{ s.similar|num(1) }}</td><td class="text-right text-slate-600">{{ s.opt_match|pct }}</td>{% endif %}
+      {% if show_similar %}<td class="text-right {{ 'font-semibold' if hl=='similar' }}">{% if s.sim_detail %}<button type="button" onclick="toggleRow('sim-{{ tid }}-{{ loop.index }}', this.closest('tr'))" class="text-fj hover:underline" title="Click to see what matched">{{ s.similar|num(1) }}<span class="text-slate-400 font-normal">/{{ s.n }}</span></button>{% else %}{{ s.similar|num(1) }}{% endif %}</td><td class="text-right text-slate-600">{{ s.opt_match|pct }}</td>{% endif %}
       <td class="text-right">{{ gross(s.front) }}</td><td class="text-right {{ 'font-semibold' if hl=='front_hat' }}">{{ gross(s.front_hat) }}</td>
       <td class="text-right">{{ gross(s.back) }}</td><td class="text-right {{ 'font-semibold' if hl=='back_hat' }}">{{ gross(s.back_hat) }}</td>
       <td class="text-right">{{ gross(s.total) }}</td><td class="text-right {{ 'font-semibold' if hl=='total_hat' }}">{{ gross(s.total_hat) }}</td>
@@ -42,6 +42,26 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
       <td class="text-right {{ 'font-semibold' if hl=='annual' }}">{{ gross(s.annual) }}</td>
       <td class="text-right">{{ s.price|money }}</td><td class="text-right">{{ s.miles|num }}</td>
     </tr>
+    {% if show_similar and s.sim_detail %}{% set d = s.sim_detail %}
+    <tr id="sim-{{ tid }}-{{ loop.index }}" class="hidden bg-slate-50 text-xs font-normal text-slate-700">
+      <td></td>
+      <td colspan="16" class="py-2">
+        <div class="flex flex-wrap gap-x-8 gap-y-2">
+          <div>
+            <div class="uppercase text-[10px] text-slate-500 mb-1">Spec match <span class="normal-case">({{ (d.spec_weight*100)|int }}% of score) — units of {{ d.n }} at {{ s.store }} that share the car's…</span></div>
+            {% for a in d.attrs %}<span class="inline-block mr-3 mb-1"><span class="text-slate-500">{{ a.label }}</span> {{ a.value|t if a.label=='Make' else a.value }}: <b>{{ a.matched }}/{{ d.n }}</b></span>{% endfor %}
+          </div>
+          {% if d.packages %}
+          <div>
+            <div class="uppercase text-[10px] text-slate-500 mb-1">Factory options <span class="normal-case">({{ (d.pkg_weight*100)|int }}% of score) — units carrying each package</span></div>
+            {% for pkg in d.packages %}<span class="inline-block mr-3 mb-1">{{ pkg.name }}: <b>{{ pkg.matched }}/{{ d.n }}</b></span>{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="text-slate-500 mt-1">Each unit scores 0–1 (spec share × {{ (d.spec_weight*100)|int }}% + options share × {{ (d.pkg_weight*100)|int }}%); Similar is the sum, so {{ d.n }} identical cars would score {{ d.n }}/{{ d.n }}.</div>
+      </td>
+    </tr>
+    {% endif %}
   {% endfor %}
   </tbody>
 </table>
