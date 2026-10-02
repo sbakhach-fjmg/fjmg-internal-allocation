@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import (DATA_DIR, STORES, APP_PASSWORD, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
+from app.config import (DATA_DIR, STORES, APP_PASSWORD, DECODE_PASSWORD, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
                         GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS)
 from app.db import init_db, connect, db, scalar
 from app.ingest.sales import parse_sales, store_deals, ORIGIN
@@ -24,7 +24,7 @@ from app.decode.taxonomy import UNKNOWN
 from app.analysis import cohorts as co
 from app.analysis.cohorts import Logic, CRITERIA, LEVELS
 from app.analysis.enrich import backfill, decode_counts
-from app.auth import AuthMiddleware, password_ok, set_session, COOKIE
+from app.auth import AuthMiddleware, password_ok, decode_password_ok, set_session, COOKIE
 
 BASE = Path(__file__).resolve().parent
 app = FastAPI(title="FJ Used Sales Analyzer")
@@ -145,7 +145,8 @@ def ctx(request: Request, **kw) -> dict:
     else:
         win = (rng[0], rng[1])
     return {"request": request, "deals": deals, "sold_min": win[0], "sold_max": win[1], "all_min": rng[0], "dc": dc, "job": JOB, "mc": mc.status(),
-            "flash": request.query_params.get("msg"), "path": request.url.path, "logic": get_logic(request), **kw}
+            "flash": request.query_params.get("msg"), "path": request.url.path, "logic": get_logic(request),
+            "decode_gated": bool(DECODE_PASSWORD), **kw}
 
 
 # ---------------------------------------------------------------- auth / health
@@ -384,7 +385,7 @@ def upload_page(request: Request):
 
 
 @app.post("/upload")
-async def upload(request: Request, file: UploadFile = File(...), decode: str = Form("1")):
+async def upload(request: Request, file: UploadFile = File(...), decode: str = Form("0"), decode_password: str = Form("")):
     dest = DATA_DIR / "uploads" / f"{datetime.now():%Y%m%d-%H%M%S}-{Path(file.filename).name}"
     with dest.open("wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -398,14 +399,20 @@ async def upload(request: Request, file: UploadFile = File(...), decode: str = F
                           (file.filename, datetime.now().strftime("%Y-%m-%d %H:%M"), stats["total"], stats["used"], stats["kept"],
                            min(dates) if dates else None, max(dates) if dates else None, str(stats)))
         store_deals(con, rows, cur.lastrowid)
-    if decode == "1" and mc.enabled():
-        start_backfill()
     msg = f"Loaded {stats['kept']} used retail deals ({stats['retail']} retail, {stats['lease']} lease); skipped {stats['wholesale']} wholesale, {stats['excluded_store']} from former stores"
+    if decode == "1":
+        if not decode_password_ok(decode_password):
+            msg += ". Decode NOT started: wrong decode password"
+        elif mc.enabled():
+            start_backfill()
+            msg += ". Decoding new VINs"
     return RedirectResponse(url="/upload?msg=" + msg.replace(" ", "+"), status_code=303)
 
 
 @app.post("/decode/start")
-def decode_start(limit: Optional[int] = Form(None)):
+def decode_start(limit: Optional[int] = Form(None), password: str = Form("")):
+    if not decode_password_ok(password):
+        return RedirectResponse(url="/upload?msg=Wrong+decode+password", status_code=303)
     started = start_backfill(limit)
     return RedirectResponse(url="/upload?msg=" + ("Decoding+started" if started else "Decode+already+running"), status_code=303)
 

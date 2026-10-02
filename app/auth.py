@@ -5,7 +5,7 @@ import hmac
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.config import APP_PASSWORD, APP_SECRET
+from app.config import APP_PASSWORD, APP_SECRET, DECODE_PASSWORD
 
 COOKIE = "fj_used_session"
 OPEN_PATHS = ("/login", "/static/", "/healthz")
@@ -23,6 +23,13 @@ def is_authed(request: Request) -> bool:
 
 def password_ok(pw: str) -> bool:
     return bool(APP_PASSWORD) and hmac.compare_digest(pw, APP_PASSWORD)
+
+
+def decode_password_ok(pw: str) -> bool:
+    """Gate for the MarketCheck backfill. With no password configured (local use) the gate is open."""
+    if not DECODE_PASSWORD:
+        return True
+    return hmac.compare_digest(pw or "", DECODE_PASSWORD)
 
 
 def set_session(resp):

@@ -53,6 +53,7 @@ MARKETCHECK_MAX_PER_RUN = int(os.environ.get("MARKETCHECK_MAX_PER_RUN", "12000")
 MARKETCHECK_WORKERS = int(os.environ.get("MARKETCHECK_WORKERS", "4"))              # parallel decode requests (global rate cap still applies)
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")      # shared sign-in; empty = open (local use only)
 APP_SECRET = os.environ.get("APP_SECRET", "")          # signs the session cookie
+DECODE_PASSWORD = os.environ.get("DECODE_PASSWORD", "") or APP_PASSWORD   # required to start a MarketCheck backfill; falls back to the sign-in password
 
 # Analysis knobs
 ANALYSIS_MONTHS = int(os.environ.get("ANALYSIS_MONTHS", "6"))  # rolling window back from the newest sold date; older deals stay stored but are not ranked

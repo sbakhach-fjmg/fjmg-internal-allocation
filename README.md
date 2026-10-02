@@ -54,6 +54,7 @@ CLI: `python -m app.cli load <file>` · `python -m app.cli decode [limit]` · `p
    The `Dockerfile` + `railway.json` are picked up automatically (health check `/healthz`).
 2. **Volume**: add a volume mounted at `/data` (SQLite db, uploads, MarketCheck cache live there).
 3. **Variables**: `MARKETCHECK_API_KEY`, `APP_PASSWORD` (sign-in), `APP_SECRET` (long random string),
+   `DECODE_PASSWORD` (needed to start a VIN backfill from the Data page; defaults to `APP_PASSWORD`),
    `DATA_DIR=/data`. Optional: `ANALYSIS_MONTHS`, `PRIOR_K`, `MIN_N_STORE`, `MIN_N_BEST`, `MIN_N_COHORT`,
    `GROSS_OVERRIDE_PCT`, `GROSS_OVERRIDE_ABS`, `MARKETCHECK_WORKERS`,
    `MARKETCHECK_RATE_PER_SEC`, `MARKETCHECK_MAX_PER_RUN`.

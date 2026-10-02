@@ -7,13 +7,14 @@
     <h2 class="font-semibold mb-3">Upload the Advent sales export {{ info("The group-wide inventory_sales_report.xlsx (the sales sheet). Only used Retail/Lease deals from active stores are kept. Re-uploading overlapping months is safe: deals are keyed on store + deal number + VIN, and only VINs never seen before are decoded.") }}</h2>
     <form method="post" action="/upload" enctype="multipart/form-data" class="space-y-3 text-sm">
       <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
-      <label class="block"><input type="checkbox" name="decode" value="1" checked> Decode new VINs with MarketCheck after loading</label>
+      <label class="block"><input type="checkbox" name="decode" value="1" checked onchange="document.getElementById('upDecodePw').classList.toggle('hidden', !this.checked)"> Decode new VINs with MarketCheck after loading</label>
+      {% if decode_gated %}<input id="upDecodePw" type="password" name="decode_password" placeholder="Decode password" autocomplete="off" class="border rounded px-2 py-1 w-48">{% endif %}
       <button class="bg-fj hover:bg-fj-dark text-white rounded px-4 py-2">Upload</button>
     </form>
   </div>
 
   <div class="rounded border border-slate-200 bg-white p-5">
-    <h2 class="font-semibold mb-2">MarketCheck VIN decode</h2>
+    <h2 class="font-semibold mb-2">MarketCheck VIN decode {{ info("Each decode is a MarketCheck API call, so starting a backfill needs the decode password. Placement lookups still decode new VINs on the fly without it.") }}</h2>
     <div class="text-sm space-y-1">
       <div>{{ dc.decoded|num }} decoded · {{ dc.pending|num }} pending · {{ dc.errors|num }} failed · of {{ dc.vins|num }} VINs</div>
       <div class="text-slate-500">Key: {{ 'set' if mc.key else 'missing' }} · Quota: {{ mc.quota_remaining or '?' }}/{{ mc.quota_limit or '?' }} remaining{% if mc.quota_reset %}, resets {{ mc.quota_reset }}{% endif %} · calls this session: {{ mc.calls_this_process }}</div>
@@ -23,7 +24,10 @@
       {% elif job.status == 'error' %}<div class="text-rose-700">Last run failed: {{ job.error }}</div>{% endif %}
     </div>
     <div class="flex gap-3 mt-3 text-sm">
-      <form method="post" action="/decode/start" class="flex items-center gap-2"><input name="limit" type="number" placeholder="limit" class="border rounded px-2 py-1 w-24"><button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5" {{ 'disabled' if job.status=='running' }}>Decode pending VINs</button></form>
+      <form method="post" action="/decode/start" class="flex items-center gap-2">
+        {% if decode_gated %}<input name="password" type="password" placeholder="Decode password" required autocomplete="off" class="border rounded px-2 py-1 w-40">{% endif %}
+        <input name="limit" type="number" placeholder="limit" class="border rounded px-2 py-1 w-24">
+        <button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5" {{ 'disabled' if job.status=='running' }}>Decode pending VINs</button></form>
       {% if job.status=='running' %}<form method="post" action="/decode/stop"><button class="text-rose-700">Stop</button></form>{% endif %}
       <a href="/decode/status" class="text-fj self-center">status json</a>
     </div>
