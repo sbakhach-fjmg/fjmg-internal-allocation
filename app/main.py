@@ -178,9 +178,7 @@ def overview(request: Request):
     logic = get_logic(request)
     stores = co.overview(df)
     strengths = co.store_strengths(df, logic=logic)
-    months = df.groupby(["month", "dealer_code"]).size().unstack(fill_value=0)
-    return templates.TemplateResponse("overview.html", ctx(request, stores=stores, strengths=strengths,
-                                                           months=months.to_dict(orient="index"), month_list=list(months.index)))
+    return templates.TemplateResponse("overview.html", ctx(request, stores=stores, strengths=strengths))
 
 
 @app.get("/models", response_class=HTMLResponse)
@@ -457,7 +455,7 @@ def export_all(request: Request, make: str = "all"):
     logic = get_logic(request)
     filters = {"make": make}
     mx = lambda keys: _matrix_sheet(co.matrix(df, keys, 3, filters, logic))  # noqa: E731
-    ov = pd.DataFrame(co.overview(df)).drop(columns=["top"], errors="ignore")
+    ov = pd.DataFrame(co.overview(df)).drop(columns=["top", "top_models"], errors="ignore")
     sheets = {"Stores": ov, "Model x Store": mx(["make", "model"]), "Trim x Store": mx(["make", "model", "trim"]),
               "Year Model x Store": mx(["year", "make", "model"]), "Miles x Store": mx(["make", "model", "mileage_band"]),
               "Spec x Store": mx(["make", "model", "spec"]),

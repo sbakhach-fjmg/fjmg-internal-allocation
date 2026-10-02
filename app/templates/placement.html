@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import gross, store_rank_table, logic_text, info %}
 {% block title %}Placement · FJ Internal Allocation{% endblock %}
 {% block body %}
-<h1 class="text-2xl font-semibold mb-4">Weekly placement {{ info("Paste this week's list (one per line: VIN mileage) or upload a sheet with VIN and Mileage columns. Each VIN is decoded through MarketCheck and matched to the most specific cohort with enough history, in this order: year · model · trim · miles · spec → drop spec → drop miles → drop year → model → make · body → make (needs ≥" ~ logic.min_cohort ~ " deals at a level). " ~ logic_text(logic)) }}</h1>
+<h1 class="text-2xl font-semibold mb-4">Weekly placement {{ info("Paste this week's list (one per line: VIN mileage) or upload a sheet with VIN and Mileage columns. Each VIN is decoded through MarketCheck and matched as closely as possible on year · model · trim · spec · miles · options, then one thing is relaxed at a time (options → miles → spec → year → trim → model → body → make) until a level has ≥" ~ logic.min_cohort ~ " deals. " ~ logic_text(logic)) }}</h1>
 
 <form method="post" action="/placement" enctype="multipart/form-data" class="grid md:grid-cols-3 gap-4 mb-6">
   <textarea name="text" rows="8" placeholder="W1K6G8CB7RA271460 11729&#10;WAUEAAF44NN007592 39031" class="md:col-span-2 border rounded p-3 font-mono text-sm">{{ text }}</textarea>

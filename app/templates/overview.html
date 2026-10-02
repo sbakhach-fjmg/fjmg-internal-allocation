@@ -2,60 +2,74 @@
 {% block title %}Stores · FJ Internal Allocation{% endblock %}
 {% block body %}
 <div class="flex items-end justify-between mb-4">
-  <div><h1 class="text-2xl font-semibold">Used retail by store {{ info("Used retail + lease deals " ~ sold_min ~ " → " ~ sold_max ~ " (rolling " ~ ANALYSIS_MONTHS ~ "-month window). Wholesale deals and former stores are excluded. Gross = total deal gross (front + back).") }}</h1></div>
+  <div><h1 class="text-2xl font-semibold">Used retail by store {{ info("Used retail + lease deals " ~ sold_min ~ " → " ~ sold_max ~ " (rolling " ~ ANALYSIS_MONTHS ~ "-month window). Wholesale deals and former stores are excluded. Gross = total deal gross (front + back). Click a store to see its top models and the models it ranks #1 for. " ~ logic_text(logic)) }}</h1></div>
   <a href="/export.xlsx" class="text-sm bg-fj hover:bg-fj-dark text-white rounded px-3 py-2">Download analysis workbook</a>
 </div>
 
-<div class="overflow-x-auto rounded border border-slate-200 bg-white mb-8">
+<div class="rounded border border-slate-200 bg-white overflow-x-auto">
 <table class="tbl text-sm w-full border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
-    <th>Store</th><th>Brand</th><th class="text-right">Sold</th>
+    <th class="w-6"></th><th>Store</th><th>Brand</th><th class="text-right">Sold</th>
     <th class="text-right">Avg front</th><th class="text-right">Avg back</th><th class="text-right">Avg total</th><th class="text-right">Total gross</th>
-    <th class="text-right">Med days</th><th class="text-right">Avg price</th><th class="text-right">Med miles</th><th>Top models</th>
+    <th class="text-right">Med days</th><th class="text-right">Avg price</th><th class="text-right">Med miles</th>
   </tr></thead>
   <tbody>
   {% for s in stores %}
-  <tr>
+  <tr class="cursor-pointer select-none" onclick="toggleStore('{{ s.store }}', this)">
+    <td class="text-fj text-xs"><span class="inline-block transition-transform" id="chev-{{ s.store }}">▶</span></td>
     <td class="font-medium">{{ s.store_name }} <span class="text-xs text-slate-400">{{ s.store }}</span></td>
     <td class="text-slate-500">{{ s.brand }}</td>
     <td class="text-right">{{ s.n }}</td>
     <td class="text-right">{{ gross(s.front) }}</td><td class="text-right">{{ gross(s.back) }}</td><td class="text-right font-medium">{{ gross(s.total) }}</td>
     <td class="text-right">{{ gross(s.total_sum) }}</td><td class="text-right">{{ s.days|num }}</td><td class="text-right">{{ s.price|money }}</td>
     <td class="text-right">{{ s.miles|num }}</td>
-    <td class="text-xs text-slate-600">{{ s.top|join(' · ') }}</td>
+  </tr>
+  <tr id="store-{{ s.store }}" class="hidden bg-slate-50">
+    <td></td>
+    <td colspan="10" class="py-3">
+      <div class="grid md:grid-cols-2 gap-6">
+        <div>
+          <div class="text-xs uppercase text-slate-500 mb-1">Top models sold</div>
+          <table class="text-sm w-full">
+            {% for m in s.top_models %}
+            <tr class="border-t border-slate-200">
+              <td class="py-1"><a class="text-fj hover:underline" href="/model?make={{ m.make|urlencode }}&model={{ m.model|urlencode }}">{{ m.make|t }} {{ m.model }}</a></td>
+              <td class="text-right text-slate-500">{{ m.n }} sold</td>
+              <td class="text-right">{{ gross(m.total) }}</td>
+              <td class="text-right text-slate-500">{{ m.days|num }}d</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500 mb-1">Ranks #1 for {{ info("Models (≥4 deals group-wide) where this store is #1 under the Logic tab's criterion — the cars to route here.") }}</div>
+          {% set rows = strengths.get(s.store, []) %}
+          {% if rows %}
+          <table class="text-sm w-full">
+            {% for r in rows[:10] %}
+            <tr class="border-t border-slate-200">
+              <td class="py-1"><a class="text-fj hover:underline" href="/model?make={{ r.key.make|urlencode }}&model={{ r.key.model|urlencode }}">{{ r.key.make|t }} {{ r.key.model }}</a></td>
+              <td class="text-right text-slate-500">{{ r.best.n }} sold</td>
+              <td class="text-right">{{ gross(r.best.total) }}</td>
+              <td class="text-right text-slate-500">{{ r.best.days|num }}d</td>
+            </tr>
+            {% endfor %}
+          </table>
+          {% else %}<div class="text-sm text-slate-400">No model where this store leads the group.</div>{% endif %}
+        </div>
+      </div>
+    </td>
   </tr>
   {% endfor %}
   </tbody>
 </table>
 </div>
-
-<h2 class="text-lg font-semibold mb-3">Where each store wins {{ info("Models (≥4 deals group-wide) where this store ranks #1 — the cars to route there. " ~ logic_text(logic)) }}</h2>
-<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
-{% for code, rows in strengths.items() %}
-  <div class="rounded border border-slate-200 bg-white p-4">
-    <div class="font-medium mb-2">{{ store_name(code) }} <span class="text-xs text-slate-400">{{ code }}</span></div>
-    {% if rows %}
-    <table class="text-sm w-full">
-      {% for r in rows[:8] %}
-      <tr class="border-t">
-        <td class="py-1"><a class="text-fj hover:underline" href="/model?make={{ r.key.make|urlencode }}&model={{ r.key.model|urlencode }}">{{ r.key.make|t }} {{ r.key.model }}</a></td>
-        <td class="text-right text-slate-500">{{ r.best.n }} sold</td>
-        <td class="text-right">{{ gross(r.best.total) }}</td>
-        <td class="text-right text-slate-500">{{ r.best.days|num }}d</td>
-        <td class="text-right font-medium">{{ gross(r.best.total_hat) }} adj</td>
-      </tr>
-      {% endfor %}
-    </table>
-    {% else %}<div class="text-sm text-slate-400">No model where this store leads the group yet.</div>{% endif %}
-  </div>
-{% endfor %}
-</div>
-
-<h2 class="text-lg font-semibold mb-2">Retail units by month</h2>
-<div class="overflow-x-auto rounded border border-slate-200 bg-white">
-<table class="tbl text-sm border-collapse">
-  <thead><tr class="text-xs uppercase text-slate-500"><th class="text-left">Month</th>{% for s in stores %}<th class="text-right">{{ s.store }}</th>{% endfor %}</tr></thead>
-  <tbody>{% for mo in month_list %}<tr><td>{{ mo }}</td>{% for s in stores %}<td class="text-right">{{ months[mo].get(s.store, 0) }}</td>{% endfor %}</tr>{% endfor %}</tbody>
-</table>
-</div>
+<script>
+function toggleStore(code, row){
+  const d = document.getElementById('store-'+code), c = document.getElementById('chev-'+code);
+  const open = d.classList.toggle('hidden');
+  c.style.transform = open ? '' : 'rotate(90deg)';
+  row.classList.toggle('bg-fj-light', !open);
+}
+</script>
 {% endblock %}

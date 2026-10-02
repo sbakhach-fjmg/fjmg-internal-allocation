@@ -28,15 +28,19 @@ from app.config import (PRIOR_K, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, MIN_DAYS
                         GROSS_OVERRIDE_ABS, store_name, STORES)
 from app.decode.taxonomy import canonical, UNKNOWN, BAND_ORDER
 
+# (label, taxonomy keys that must match exactly, require package overlap?)
 LEVELS = [
-    ("Year · Model · Trim · Miles · Spec", ["year", "make", "model", "trim", "mileage_band", "spec"]),
-    ("Year · Model · Trim · Miles", ["year", "make", "model", "trim", "mileage_band"]),
-    ("Year · Model · Trim", ["year", "make", "model", "trim"]),
-    ("Model · Trim", ["make", "model", "trim"]),
-    ("Model", ["make", "model"]),
-    ("Make · Body", ["make", "body"]),
-    ("Make", ["make"]),
+    ("Year · Model · Trim · Spec · Miles · Options", ["year", "make", "model", "trim", "spec", "mileage_band"], True),
+    ("Year · Model · Trim · Spec · Miles", ["year", "make", "model", "trim", "spec", "mileage_band"], False),
+    ("Year · Model · Trim · Spec", ["year", "make", "model", "trim", "spec"], False),
+    ("Year · Model · Trim", ["year", "make", "model", "trim"], False),
+    ("Model · Trim (any year)", ["make", "model", "trim"], False),
+    ("Year · Model", ["year", "make", "model"], False),
+    ("Model", ["make", "model"], False),
+    ("Make · Body", ["make", "body"], False),
+    ("Make", ["make"], False),
 ]
+PACKAGE_MATCH_SHARE = 0.5   # a sold unit "matches on options" if it carries at least this share of the incoming car's packages
 SPEC_KEYS = ["year", "make", "model", "trim", "version", "body_type", "vehicle_type", "drivetrain", "powertrain_type", "ext_base", "msrp", "error", "packages"]
 SIM_ATTRS = ["trim", "drivetrain", "powertrain", "body", "mileage_band", "ext_base", "year"]
 
@@ -156,17 +160,30 @@ def store_order(df: pd.DataFrame) -> list:
     return sorted(vol, key=lambda c: (STORES.get(c, {}).get("brand", "zz"), -vol[c]))
 
 
+def package_overlap(units: pd.Series, packages: list) -> pd.Series:
+    """Share of the vehicle's packages present on each sold unit (0..1)."""
+    want = {str(x).lower() for x in (packages or [])}
+    if not want:
+        return pd.Series(0.0, index=units.index)
+    return units.apply(lambda lst: len(want & {str(x).lower() for x in (lst or [])}) / len(want))
+
+
 def similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
-    """Sum over the store's units of (matching attributes / attributes known on the vehicle)."""
+    """Sum over the store's units of (matching attributes / attributes known on the vehicle). Package overlap counts as one attribute."""
     if not vehicle:
         return None
     attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
-    if not attrs:
+    pk = vehicle.get("packages") or []
+    if not attrs and not pk:
         return None
     score = pd.Series(0.0, index=g.index)
     for a in attrs:
         score += (g[a].astype(str) == str(vehicle[a])).astype(float)
-    return float((score / len(attrs)).sum())
+    n_attrs = len(attrs)
+    if pk and "packages" in g.columns:
+        score += package_overlap(g["packages"], pk)
+        n_attrs += 1
+    return float((score / n_attrs).sum())
 
 
 # ---------------------------------------------------------------- scoring
@@ -238,20 +255,27 @@ def _rank(rows: list, logic: Logic) -> list:
 
 def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Optional[dict]:
     """Walk LEVELS from specific to broad; return the first level with enough history."""
-    for label, keys in LEVELS:
+    pk = vehicle.get("packages") or []
+    for label, keys, need_options in LEVELS:
+        if need_options and not pk:
+            continue
         if any(vehicle.get(k) in (None, UNKNOWN, 0, "", "0") for k in keys):
             continue
         mask = pd.Series(True, index=df.index)
         for k in keys:
             mask &= df[k].astype(str) == str(vehicle[k])
+        if need_options:
+            mask &= package_overlap(df["packages"], pk) >= PACKAGE_MATCH_SHARE
         sub = df[mask]
         if len(sub) < logic.min_cohort:
             continue
         t = store_table(sub, logic, vehicle)
         if t.empty or not t["ranked"].any():
             continue
-        return {"level": label, "match": {k: vehicle[k] for k in keys}, "n": len(sub), "table": t,
-                "best": t.iloc[0].to_dict(), "deals": sub}
+        match = {k: vehicle[k] for k in keys}
+        if need_options:
+            match["options"] = f"≥{int(PACKAGE_MATCH_SHARE * 100)}% of: " + ", ".join(pk)
+        return {"level": label, "match": match, "n": len(sub), "table": t, "best": t.iloc[0].to_dict(), "deals": sub}
     return None
 
 
@@ -259,14 +283,15 @@ def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Opti
 def overview(df: pd.DataFrame) -> list:
     out = []
     for code, g in df.groupby("dealer_code"):
-        top = g.groupby(["make", "model"]).size().sort_values(ascending=False).head(3)
+        top = (g.groupby(["make", "model"]).agg(n=("vin", "size"), total=("total_gross", "mean"), days=("days_to_sell", "median"))
+               .sort_values("n", ascending=False).head(10).reset_index())
         out.append({"store": code, "store_name": store_name(code), "brand": STORES.get(code, {}).get("brand", ""),
                     "n": len(g), "lease_share": float((g["sale_type"] == "Lease").mean()),
                     "front": _mean(g["front_gross"]), "back": _mean(g["back_gross"]), "total": _mean(g["total_gross"]),
                     "total_sum": float(pd.to_numeric(g["total_gross"], errors="coerce").sum()), "days": _median(g["days_to_sell"]),
                     "price": _mean(g["sold_price"]), "miles": _median(g["mileage"]),
                     "decoded": float(g["decoded"].mean()) if len(g) else 0.0,
-                    "top": [f"{str(m[0]).title()} {m[1]} ({c})" for m, c in top.items()]})
+                    "top_models": top.to_dict(orient="records")})
     out.sort(key=lambda s: (STORES.get(s["store"], {}).get("brand", "zz"), -s["n"]))
     return out
 
@@ -329,4 +354,10 @@ def make_list(df: pd.DataFrame) -> list:
 
 def vehicle_from_spec(spec: dict, mileage=None, year=None, make=None) -> dict:
     deal = {"year": year or (spec or {}).get("year"), "make": make or (spec or {}).get("make"), "model": None, "mileage": mileage}
-    return canonical(deal, spec)
+    veh = canonical(deal, spec)
+    pk = (spec or {}).get("packages_list")
+    if pk is None:
+        raw = (spec or {}).get("packages")
+        pk = json.loads(raw) if isinstance(raw, str) and raw.startswith("[") else []
+    veh["packages"] = pk
+    return veh
