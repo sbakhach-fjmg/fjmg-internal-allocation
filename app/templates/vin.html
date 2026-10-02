@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import gross, store_rank_table, logic_line %}
+{% extends "base.html" %}{% from "_macros.html" import gross, store_rank_table, logic_text, info %}
 {% block title %}{{ vin }} · FJ Internal Allocation{% endblock %}
 {% block body %}
 <h1 class="text-2xl font-semibold mb-1 font-mono">{{ vin }}</h1>
@@ -24,10 +24,9 @@
 {% endif %}
 
 {% if r.rec %}
-<h2 class="text-lg font-semibold mb-1">Where to place it</h2>
+<h2 class="text-lg font-semibold mb-1">Where to place it {{ info(logic_text(logic)) }}</h2>
 <p class="text-sm text-slate-500 mb-2">Matched on <em>{{ r.rec.level }}</em>: {% for k, v in r.rec.match.items() %}<span class="mr-2">{{ k.replace('_',' ') }} = <b>{{ v|t }}</b></span>{% endfor %} · {{ r.rec.n }} deals</p>
 <div class="rounded border border-slate-200 bg-white overflow-x-auto mb-2">{{ store_rank_table(r.table, logic, show_similar=True) }}</div>
-{{ logic_line(logic) }}
 {% elif not s.error %}
 <div class="rounded border border-fj-mid bg-fj-light text-fj-dark px-4 py-2 text-sm">{{ r.error }}</div>
 {% endif %}

@@ -2,8 +2,16 @@
   <span class="{{ 'neg' if v is not none and v == v and v < 0 else '' }}">{{ v|money }}</span>
 {%- endmacro %}
 
+{% macro logic_text(logic) -%}
+Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (another store takes #1 only if its adj total gross is ≥{{ (logic.over_pct*100)|int }}% and ≥{{ logic.over_abs|money }} more per unit, with ≥{{ logic.min_best }} sales){% endif %}. Adj = shrunk toward the cohort mean with K={{ logic.k|int }}. A store needs ≥{{ logic.min_store }} deals to be ranked. Change this on the Logic tab.
+{%- endmacro %}
+
+{% macro info(text) -%}
+<span class="relative inline-block align-middle ml-2 group"><span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-fj text-fj text-[10px] font-semibold leading-none cursor-help select-none" aria-label="Info">i</span><span class="hidden group-hover:block absolute left-0 top-6 z-20 w-80 rounded border border-slate-200 bg-white p-3 text-xs font-normal normal-case tracking-normal text-slate-600 shadow-lg">{{ text|safe }}</span></span>
+{%- endmacro %}
+
 {% macro logic_line(logic) -%}
-<p class="text-xs text-slate-500">Ranking by <b>{{ logic.label }}</b>{% if logic.rank_by=='volume' %} (override: ≥{{ (logic.over_pct*100)|int }}% and ≥{{ logic.over_abs|money }} more per unit, ≥{{ logic.min_best }} sales){% endif %} · adj = shrunk toward the cohort mean with K={{ logic.k|int }} · ≥{{ logic.min_store }} deals to be ranked · <a href="/logic" class="text-fj hover:underline">change</a></p>
+<p class="text-xs text-slate-500">{{ logic_text(logic) }}</p>
 {%- endmacro %}
 
 {% macro store_rank_table(rows, logic, show_similar=False) -%}

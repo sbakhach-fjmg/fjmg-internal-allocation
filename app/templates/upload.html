@@ -1,11 +1,10 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_macros.html" import info %}
 {% block title %}Data · FJ Internal Allocation{% endblock %}
 {% block body %}
 <h1 class="text-2xl font-semibold mb-4">Data</h1>
 <div class="grid lg:grid-cols-2 gap-6">
   <div class="rounded border border-slate-200 bg-white p-5">
-    <h2 class="font-semibold mb-2">Upload the Advent sales export</h2>
-    <p class="text-sm text-slate-500 mb-3">The group-wide <code>inventory_sales_report.xlsx</code> (the <em>sales</em> sheet). Only used Retail/Lease deals from active stores are kept; re-uploading overlaps is safe (deals are keyed on store + deal number + VIN).</p>
+    <h2 class="font-semibold mb-3">Upload the Advent sales export {{ info("The group-wide inventory_sales_report.xlsx (the sales sheet). Only used Retail/Lease deals from active stores are kept. Re-uploading overlapping months is safe: deals are keyed on store + deal number + VIN, and only VINs never seen before are decoded.") }}</h2>
     <form method="post" action="/upload" enctype="multipart/form-data" class="space-y-3 text-sm">
       <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
       <label class="block"><input type="checkbox" name="decode" value="1" checked> Decode new VINs with MarketCheck after loading</label>

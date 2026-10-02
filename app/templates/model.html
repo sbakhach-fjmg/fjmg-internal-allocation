@@ -1,13 +1,11 @@
-{% extends "base.html" %}{% from "_macros.html" import gross, matrix_table, store_rank_table, logic_line %}
+{% extends "base.html" %}{% from "_macros.html" import gross, matrix_table, store_rank_table, logic_text, info %}
 {% block title %}{{ make|t }} {{ model }} · FJ Internal Allocation{% endblock %}
 {% block body %}
 <div class="mb-4"><a href="/models?make={{ make|urlencode }}" class="text-sm text-fj hover:underline">← {{ make|t }} models</a>
-  <h1 class="text-2xl font-semibold">{{ make|t }} {{ model }}</h1>
-  <p class="text-sm text-slate-500">{{ n }} retail/lease deals · {{ decoded|pct }} of VINs decoded (undecoded units show "(unknown)" trim/spec until the backfill finishes).</p></div>
+  <h1 class="text-2xl font-semibold">{{ make|t }} {{ model }} <span class="text-base font-normal text-slate-500 ml-2">{{ n }} deals</span>{{ info(decoded|pct ~ " of these VINs are decoded. Undecoded units show (unknown) trim/spec until the MarketCheck backfill finishes.") }}</h1></div>
 
-<h2 class="text-lg font-semibold mb-2">Store ranking for this model</h2>
-<div class="rounded border border-slate-200 bg-white overflow-x-auto mb-2">{{ store_rank_table(overall, logic) }}</div>
-<div class="mb-8">{{ logic_line(logic) }}</div>
+<h2 class="text-lg font-semibold mb-2">Store ranking for this model {{ info(logic_text(logic)) }}</h2>
+<div class="rounded border border-slate-200 bg-white overflow-x-auto mb-8">{{ store_rank_table(overall, logic) }}</div>
 
 {% for title, m in sections %}
 <h2 class="text-lg font-semibold mb-2">{{ title }}</h2>
