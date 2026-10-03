@@ -11,7 +11,7 @@
     <label for="fileInput" id="dropzone" class="block rounded-lg border-2 border-dashed border-fj-mid bg-fj-light/60 hover:bg-fj-light cursor-pointer px-6 py-10 text-center transition">
       <svg class="mx-auto h-10 w-10 text-fj" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
       <div class="mt-3 font-medium text-fj-dark" id="fileLabel">Choose file</div>
-      <div class="text-xs text-slate-500 mt-1">xlsx or csv with VIN and Mileage columns · or drag it here</div>
+      <div class="text-xs text-slate-500 mt-1">xlsx or csv with VIN and Mileage columns · or drag it here · up to {{ PLACEMENT_MAX_VINS }} VINs per run</div>
       <input id="fileInput" type="file" name="file" accept=".xlsx,.xls,.csv" class="sr-only" onchange="pickFile(this)">
     </label>
 

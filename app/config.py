@@ -63,4 +63,5 @@ MIN_N_BEST = int(os.environ.get("MIN_N_BEST", "5"))    # deals a store needs bef
 GROSS_OVERRIDE_PCT = float(os.environ.get("GROSS_OVERRIDE_PCT", "0"))      # optional extra: challenger must also beat the leader by this share (0 = off)
 GROSS_OVERRIDE_ABS = float(os.environ.get("GROSS_OVERRIDE_ABS", "2000"))  # ...and by at least this many dollars per unit
 MIN_N_COHORT = int(os.environ.get("MIN_N_COHORT", "5"))  # retail deals a cohort level needs before we trust it
+PLACEMENT_MAX_VINS = int(os.environ.get("PLACEMENT_MAX_VINS", "150"))   # most VINs one placement run will accept
 MIN_DAYS = 10                                          # floor on days-to-sell when annualizing (avoids divide-by-tiny)

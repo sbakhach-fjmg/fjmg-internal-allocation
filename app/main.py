@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import (DATA_DIR, STORES, EXCLUDED_STORES, APP_PASSWORD, DECODE_PASSWORD, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
+from app.config import (DATA_DIR, STORES, EXCLUDED_STORES, APP_PASSWORD, DECODE_PASSWORD, PLACEMENT_MAX_VINS, store_name, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, PRIOR_K, ANALYSIS_MONTHS,
                         GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS)
 from app.db import init_db, connect, db, scalar
 from app.ingest.sales import parse_sales, store_deals, ORIGIN
@@ -85,7 +85,8 @@ def f_title(v):
 templates.env.filters.update(money=f_money, num=f_num, pct=f_pct, t=f_title)
 templates.env.globals.update(STORES=STORES, store_name=store_name, UNKNOWN=UNKNOWN, ORIGIN=ORIGIN, now=datetime.now,
                              MIN_N_STORE=MIN_N_STORE, MIN_N_BEST=MIN_N_BEST, MIN_N_COHORT=MIN_N_COHORT, PRIOR_K=PRIOR_K, ANALYSIS_MONTHS=ANALYSIS_MONTHS,
-                             GROSS_OVERRIDE_PCT=GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS=GROSS_OVERRIDE_ABS, CRITERIA=CRITERIA, LEVELS=LEVELS, MIN_DAYS=10, TIE_PRESETS=TIE_PRESETS, tie_preset_of=tie_preset_of)
+                             GROSS_OVERRIDE_PCT=GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS=GROSS_OVERRIDE_ABS, CRITERIA=CRITERIA, LEVELS=LEVELS, MIN_DAYS=10, TIE_PRESETS=TIE_PRESETS, tie_preset_of=tie_preset_of,
+                             PLACEMENT_MAX_VINS=PLACEMENT_MAX_VINS)
 
 
 # ---------------------------------------------------------------- cached frame + background job
@@ -307,6 +308,18 @@ async def placement_run(request: Request, text: str = Form(""), file: UploadFile
             vehicles += parse_vehicle_file(await file.read(), file.filename)
         except Exception as e:  # noqa: BLE001
             err = str(e)
+    # de-duplicate on VIN, then cap the run
+    seen, unique = set(), []
+    for v in vehicles:
+        key = v.get("vin") or v.get("raw")
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(v)
+    if len(unique) > PLACEMENT_MAX_VINS:
+        err = (err + " · " if err else "") + f"{len(unique)} vehicles submitted; only the first {PLACEMENT_MAX_VINS} were run. Split larger lists into batches."
+        unique = unique[:PLACEMENT_MAX_VINS]
+    vehicles = unique
     results = place(vehicles, get_logic(request)) if vehicles else []
     text_all = "\n".join(f"{r['vin']} {r['mileage'] or ''}".strip() for r in results if r.get("vin"))
     return templates.TemplateResponse("placement.html", ctx(request, results=results, text=text_all, error=err))
@@ -315,7 +328,7 @@ async def placement_run(request: Request, text: str = Form(""), file: UploadFile
 @app.post("/placement/export")
 def placement_export(request: Request, text: str = Form("")):
     logic = get_logic(request)
-    results = place(parse_vehicle_lines(text), logic)
+    results = place(parse_vehicle_lines(text)[:PLACEMENT_MAX_VINS], logic)
     rows, detail = [], []
     for r in results:
         veh, rec = r.get("veh") or {}, r.get("rec")
@@ -415,6 +428,7 @@ def rules_for(logic: Logic) -> list:
             {"title": "Key packages must match first", "body": f"At the options levels a sold unit only counts if it carries <b>every</b> key package family the incoming car has. A car with only minor packages needs at least {int(PACKAGE_MATCH_SHARE*100)}% of them matched. A car with no usable packages skips the options levels."},
             {"title": "Relax one thing at a time", "body": f"Matching starts at the most specific level and relaxes miles, then spec, then year while keeping options, then drops options and repeats, down to model, body and make:<ol class='list-decimal ml-5 mt-1'>{levels}</ol>"},
             {"title": "Minimum deals per level", "body": f"A level is only used when it has at least <b>{logic.min_cohort}</b> deals and at least one store that qualifies to be ranked. Otherwise the next, broader level is tried. The level used is shown with each result."},
+            {"title": "150 VINs per run", "body": f"A placement run accepts up to <b>{PLACEMENT_MAX_VINS}</b> VINs (duplicates removed first). Longer lists are cut to the first {PLACEMENT_MAX_VINS} with a notice; split them into batches. This also caps how many MarketCheck calls one run can trigger."},
             {"title": "Mileage comes from your list", "body": "Enter mileage with each VIN (\"VIN mileage\" per line, or a Mileage column in the sheet). Without it the mileage band is unknown and the mileage levels are skipped."},
             {"title": "Sold by us before", "body": "If an incoming VIN has been retailed by the group inside the window, that history is shown with the recommendation."},
         ]),
