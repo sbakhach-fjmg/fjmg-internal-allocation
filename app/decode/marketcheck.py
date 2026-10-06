@@ -124,7 +124,8 @@ def normalize(vin: str, d: dict) -> dict:
     except (TypeError, ValueError):
         year = None
     packages = extract_packages(d)
-    # keep the raw payload minus the bulky feature lists
+    options = extract_options(d)
+    # keep the raw payload minus the bulky feature lists (confidence fields stay in raw)
     slim = {k: v for k, v in d.items() if k not in ("features", "high_value_features", "installed_equipment", "warranty")}
     return {
         "vin": vin, "source": d.get("_source"), "decoded_at": now, "error": None,
@@ -133,8 +134,27 @@ def normalize(vin: str, d: dict) -> dict:
         "transmission": g("transmission"), "engine": g("engine"), "cylinders": cyl, "fuel_type": g("fuel_type"),
         "powertrain_type": g("powertrain_type"), "msrp": msrp,
         "ext_color": ext, "ext_base": ext_base, "int_color": inte, "int_base": int_base,
-        "packages": json.dumps(packages), "raw": json.dumps(slim, default=str),
+        "packages": json.dumps(packages), "mfr_code": g("manufacturer_code"), "options": json.dumps(options),
+        "raw": json.dumps(slim, default=str),
     }
+
+
+def extract_options(d: dict) -> list:
+    """Every installed package (type P) and standalone option (type O): [{type, code, name, msrp}]. Colors are excluded."""
+    out, seen = [], set()
+    for o in d.get("installed_options_details") or []:
+        if not isinstance(o, dict) or o.get("type") not in ("P", "O"):
+            continue
+        key = (o.get("type"), str(o.get("code") or o.get("name") or "").upper())
+        if not key[1] or key in seen:
+            continue
+        seen.add(key)
+        try:
+            msrp = float(o.get("msrp")) if o.get("msrp") not in (None, "") else None
+        except (TypeError, ValueError):
+            msrp = None
+        out.append({"type": o["type"], "code": str(o.get("code") or ""), "name": str(o.get("name") or "").strip(), "msrp": msrp})
+    return out
 
 
 def extract_packages(d: dict) -> list:
@@ -150,7 +170,7 @@ def extract_packages(d: dict) -> list:
 
 SPEC_COLS = ["vin", "source", "decoded_at", "error", "year", "make", "model", "trim", "version", "body_type", "vehicle_type",
              "drivetrain", "transmission", "engine", "cylinders", "fuel_type", "powertrain_type", "msrp",
-             "ext_color", "ext_base", "int_color", "int_base", "packages", "raw"]
+             "ext_color", "ext_base", "int_color", "int_base", "packages", "mfr_code", "options", "raw"]
 
 
 def upsert_spec(con, rec: dict):

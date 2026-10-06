@@ -15,8 +15,12 @@ Which of these decides #1 is the user's choice (the Logic tab). The default is N
 that has sold the MOST of that car is #1, and another store only takes #1 when its adj total gross
 per unit is dramatically higher (≥ over_pct AND ≥ over_abs dollars more, with ≥ min_best sales).
 
-The recommender walks LEVELS from specific to broad and stops at the first level with enough history
-(min_cohort deals) and at least one store with min_store deals.
+Placement matching (Nick, 2026-10-05): the comparison pool is every sold unit that matches the incoming car
+EXACTLY on make, model, trim/version, manufacturer code, body, engine and fuel type. Within the pool the same
+model year is preferred, widening to ±1 and ±2 years only when the same year has too few sales. Each unit then
+scores on how many of the car's installed options (packages weigh more than standalone options) it shares, plus
+a smaller bonus for matching exterior and interior color. Only when the exact pool is too small does matching
+relax to same version → same trim → same model → same make, and the result says so.
 """
 from __future__ import annotations
 import json
@@ -29,24 +33,28 @@ from app.config import (PRIOR_K, MIN_N_STORE, MIN_N_BEST, MIN_N_COHORT, MIN_DAYS
                         GROSS_OVERRIDE_ABS, store_name, STORES)
 from app.decode.taxonomy import canonical, UNKNOWN, BAND_ORDER
 
-# (label, taxonomy keys that must match exactly, require package overlap?)
-LEVELS = [
-    ("Year · Model · Trim · Spec · Miles · Options", ["year", "make", "model", "trim", "spec", "mileage_band"], True),
-    ("Year · Model · Trim · Spec · Options", ["year", "make", "model", "trim", "spec"], True),
-    ("Year · Model · Trim · Options", ["year", "make", "model", "trim"], True),
-    ("Model · Trim · Options (any year)", ["make", "model", "trim"], True),
-    ("Year · Model · Trim · Spec · Miles", ["year", "make", "model", "trim", "spec", "mileage_band"], False),
-    ("Year · Model · Trim · Spec", ["year", "make", "model", "trim", "spec"], False),
-    ("Year · Model · Trim", ["year", "make", "model", "trim"], False),
-    ("Model · Trim (any year)", ["make", "model", "trim"], False),
-    ("Year · Model", ["year", "make", "model"], False),
-    ("Model", ["make", "model"], False),
-    ("Make · Body", ["make", "body"], False),
-    ("Make", ["make"], False),
+# Fields that must match exactly to be in the comparison pool (field, label)
+REQUIRED = [("make", "Make"), ("model", "Model"), ("version", "Trim / version"), ("mfr_code", "Manufacturer code"),
+            ("body", "Body"), ("engine", "Engine"), ("fuel", "Fuel type")]
+YEAR_SPANS = [(0, "same year"), (1, "±1 year"), (2, "±2 years")]
+MILE_SPANS = [(5000, "within 5k miles"), (10000, "within 10k miles"), (20000, "within 20k miles")]
+# Fallbacks when the exact pool is too small: (label, fields that must still match)
+FALLBACKS = [("Same version (ignoring manufacturer code, engine, fuel)", ["make", "model", "version"]),
+             ("Same trim", ["make", "model", "trim"]), ("Same model", ["make", "model"]), ("Same make and body", ["make", "body"]), ("Same make", ["make"])]
+MATCH_STEPS = [
+    "Exact match on make, model, trim/version, manufacturer code, body, engine and fuel type",
+    "Same model year; widen to ±1 then ±2 years only if the same year has too few sales",
+    "Mileage within 5,000 miles either way; widen to 10k then 20k only if the band has too few sales",
+    "Score each unit on installed options shared with the car (packages weigh 2×, standalone options 1×)",
+    "Bonus for matching exterior color, smaller bonus for matching interior color",
+    "If the exact pool is too small: same version → same trim → same model → same make and body → same make (flagged)",
 ]
-PACKAGE_MATCH_SHARE = 0.5   # with no key packages: a sold unit "matches on options" if it carries at least this share of the car's packages
-KEY_PACKAGE_WEIGHT = 3.0    # a key package counts this many times a minor one in the similarity score
-
+# kept for pages that still list it
+LEVELS = [(label, [], False) for label in MATCH_STEPS]
+PACKAGE_MATCH_SHARE = 0.5
+KEY_PACKAGE_WEIGHT = 3.0    # kept for the Models-page package breakdown weighting of key families
+OPTION_WEIGHTS = {"P": 2.0, "O": 1.0}
+SIM_WEIGHTS = {"options": 0.55, "year": 0.25, "ext": 0.12, "int": 0.08}
 # Key package families: (family label, regex on the package name). Spelling variants collapse into one family,
 # e.g. "AMG Line", "AMG Line Exterior Package" and "AMG Line w/Night Package" are all the AMG Line family.
 KEY_PACKAGES = [
@@ -75,6 +83,19 @@ def key_families(packages) -> list:
     return [fam for fam, rx in KEY_PACKAGES if any(rx.search(n) for n in names)]
 
 
+def option_keys(options) -> dict:
+    """{key: type} for an options list; key is TYPE:CODE (or TYPE:NAME when there is no code)."""
+    out = {}
+    for o in options or []:
+        if not isinstance(o, dict):
+            continue
+        k = f"{o.get('type')}:{(o.get('code') or o.get('name') or '').upper()}"
+        if k.endswith(":"):
+            continue
+        out[k] = o.get("type")
+    return out
+
+
 def minor_packages(packages) -> list:
     """Package names that are neither a key family nor an accessory."""
     out = []
@@ -84,7 +105,8 @@ def minor_packages(packages) -> list:
             continue
         out.append(n)
     return out
-SPEC_KEYS = ["year", "make", "model", "trim", "version", "body_type", "vehicle_type", "drivetrain", "powertrain_type", "ext_base", "msrp", "error", "packages"]
+SPEC_KEYS = ["year", "make", "model", "trim", "version", "body_type", "vehicle_type", "drivetrain", "powertrain_type", "ext_base", "msrp", "error",
+             "packages", "mfr_code", "engine", "fuel_type", "ext_color", "int_color", "options"]
 SIM_ATTRS = ["trim", "drivetrain", "powertrain", "body", "mileage_band", "ext_base", "year"]
 
 # key -> (label, one-line description, sort column, ascending?)
@@ -99,10 +121,10 @@ CRITERIA = {
     "slot": ("Gross per slot per year", "Adj total gross × 365 / adj days to sell: what one inventory slot earns in a year. Rewards profit and turn together.",
              "annual", False),
     "days": ("Fastest turn", "Lowest adj days from receive to sold. Use when moving metal matters more than margin.", "days_hat", True),
-    "similar": ("Most similar units sold", "Which store has sold the most cars that look like this one. Each sold unit scores 0–1: half for matching "
-                                           "trim, drivetrain, powertrain, body, mileage band, color and year, half for sharing the car's factory options "
-                                           "(packages). The store total is its count of look-alikes. Only meaningful on Placement / VIN pages (there is "
-                                           "a vehicle to compare to); elsewhere falls back to volume.",
+    "similar": ("Most similar units sold", "Which store has sold the most cars that look like this one. Within the exact-match pool each sold unit "
+                                           "scores 0–1: 55% for installed options shared with the car (packages 2×, standalone options 1×), 25% for "
+                                           "year closeness, 12% exterior color, 8% interior color. The store total is its count of look-alikes. Only "
+                                           "meaningful on Placement / VIN pages; elsewhere falls back to volume.",
                 "similar", False),
 }
 
@@ -211,6 +233,7 @@ def load_frame(con) -> pd.DataFrame:
     df = pd.concat([df.reset_index(drop=True), pd.DataFrame(canon)], axis=1)
     df["packages"] = [json.loads(v) if isinstance(v, str) and v.startswith("[") else [] for v in df["s_packages"]]
     df["key_pkgs"] = [key_families(p) for p in df["packages"]]
+    df["opt_keys"] = [option_keys(o) for o in df["options"]]
     df["sold"] = pd.to_datetime(df["sold_date"], errors="coerce")
     df["month"] = df["sold"].dt.to_period("M").astype(str)
     df["store_name"] = df["dealer_code"].map(store_name)
@@ -274,28 +297,41 @@ def options_filter(units: pd.Series, packages: list) -> pd.Series:
     return package_overlap(units, packages) >= PACKAGE_MATCH_SHARE
 
 
-PACKAGE_WEIGHT = 0.5   # share of the similarity score carried by factory-option overlap (when the vehicle has packages)
+def option_share(units: pd.Series, veh_opts: dict) -> pd.Series:
+    """Weighted share of the car's installed options present on each unit (0..1). Packages weigh 2, options 1."""
+    if not veh_opts:
+        return pd.Series(0.0, index=units.index)
+    total = sum(OPTION_WEIGHTS.get(t, 1.0) for t in veh_opts.values())
+    return units.apply(lambda ok: sum(OPTION_WEIGHTS.get(t, 1.0) for k, t in veh_opts.items() if k in (ok or {})) / total)
+
+
+def year_closeness(years: pd.Series, year) -> pd.Series:
+    """1.0 same year, 0.7 ±1, 0.4 ±2, 0.1 beyond."""
+    if not year:
+        return pd.Series(1.0, index=years.index)
+    dy = (pd.to_numeric(years, errors="coerce") - int(year)).abs()
+    return dy.map(lambda d: 1.0 if d == 0 else 0.7 if d == 1 else 0.4 if d == 2 else 0.1).fillna(0.1)
 
 
 def unit_similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[pd.Series]:
-    """Per sold unit, 0..1: how much it looks like the vehicle. Half the score is spec attributes
-    (trim, drivetrain, powertrain, body, mileage band, color, year), half is factory-option overlap."""
+    """Per sold unit, 0..1: options shared (55%), year closeness (25%), exterior color (12%), interior color (8%).
+    Weights renormalize when the car has no installed options or an unknown color."""
     if not vehicle:
         return None
-    attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
-    pk = vehicle.get("packages") or []
-    if not (key_families(pk) or minor_packages(pk)):
-        pk = []
-    if not attrs and not pk:
-        return None
-    spec = pd.Series(0.0, index=g.index)
-    for a in attrs:
-        spec += (g[a].astype(str) == str(vehicle[a])).astype(float)
-    spec = spec / len(attrs) if attrs else pd.Series(0.0, index=g.index)
-    if pk and "packages" in g.columns:
-        opts = package_overlap(g["packages"], pk)
-        return (1 - PACKAGE_WEIGHT) * spec + PACKAGE_WEIGHT * opts if attrs else opts
-    return spec
+    veh_opts = vehicle.get("opt_keys") or option_keys(vehicle.get("options"))
+    parts, weights = [], []
+    if veh_opts:
+        parts.append(option_share(g["opt_keys"], veh_opts)); weights.append(SIM_WEIGHTS["options"])
+    parts.append(year_closeness(g["year"], vehicle.get("year"))); weights.append(SIM_WEIGHTS["year"])
+    if vehicle.get("ext_color") not in (None, UNKNOWN, ""):
+        parts.append((g["ext_color"].astype(str) == str(vehicle["ext_color"])).astype(float)); weights.append(SIM_WEIGHTS["ext"])
+    if vehicle.get("int_color") not in (None, UNKNOWN, ""):
+        parts.append((g["int_color"].astype(str) == str(vehicle["int_color"])).astype(float)); weights.append(SIM_WEIGHTS["int"])
+    total = sum(weights)
+    score = pd.Series(0.0, index=g.index)
+    for part, w in zip(parts, weights):
+        score += part * (w / total)
+    return score
 
 
 def similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
@@ -304,40 +340,42 @@ def similarity(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
     return None if u is None else float(u.sum())
 
 
-SIM_LABELS = {"trim": "Trim", "drivetrain": "Drivetrain", "powertrain": "Powertrain", "body": "Body", "mileage_band": "Mileage band",
-              "ext_base": "Color", "year": "Year"}
+def options_match(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
+    """Average share of the car's installed options found on the store's units (0..1)."""
+    veh_opts = (vehicle or {}).get("opt_keys") or option_keys((vehicle or {}).get("options"))
+    if not veh_opts or g.empty:
+        return None
+    return float(option_share(g["opt_keys"], veh_opts).mean())
 
 
 def sim_detail(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[dict]:
-    """What matched, for the Similar breakdown: per attribute the vehicle's value and how many of the store's
-    units share it; per factory package how many units carry it."""
+    """What matched, for the Similar breakdown."""
     if not vehicle:
         return None
-    attrs = [a for a in SIM_ATTRS if vehicle.get(a) not in (None, UNKNOWN, 0, "", "0")]
-    pk = vehicle.get("packages") or []
-    if not (key_families(pk) or minor_packages(pk)):
-        pk = []
-    if not attrs and not pk:
-        return None
-    out = {"n": int(len(g)), "attrs": [], "packages": [], "spec_weight": (1 - PACKAGE_WEIGHT) if pk else 1.0, "pkg_weight": PACKAGE_WEIGHT if pk else 0.0}
-    for a in attrs:
-        out["attrs"].append({"label": SIM_LABELS.get(a, a), "value": vehicle[a], "matched": int((g[a].astype(str) == str(vehicle[a])).sum())})
-    if pk and "packages" in g.columns:
-        for fam in key_families(pk):
-            cnt = int(g["key_pkgs"].apply(lambda fs: fam in fs).sum())
-            out["packages"].append({"name": fam, "matched": cnt, "key": True})
-        for name in minor_packages(pk):
-            cnt = int(g["packages"].apply(lambda lst: any(str(x).lower() == str(name).lower() for x in (lst or []))).sum())
-            out["packages"].append({"name": name, "matched": cnt, "key": False})
-    return out
-
-
-def options_match(g: pd.DataFrame, vehicle: Optional[dict]) -> Optional[float]:
-    """Average share of the vehicle's factory packages found on the store's units (0..1)."""
-    pk = (vehicle or {}).get("packages") or []
-    if not pk or "packages" not in g.columns or g.empty:
-        return None
-    return float(package_overlap(g["packages"], pk).mean())
+    n = int(len(g))
+    veh_opts = vehicle.get("opt_keys") or option_keys(vehicle.get("options"))
+    yrs = pd.to_numeric(g["year"], errors="coerce")
+    vy = int(vehicle.get("year") or 0)
+    years = {"same": int((yrs == vy).sum()), "pm1": int(((yrs - vy).abs() == 1).sum()), "pm2": int(((yrs - vy).abs() == 2).sum()),
+             "more": int(((yrs - vy).abs() > 2).sum())} if vy else None
+    opts = []
+    for o in vehicle.get("options") or []:
+        if not isinstance(o, dict):
+            continue
+        k = f"{o.get('type')}:{(o.get('code') or o.get('name') or '').upper()}"
+        cnt = int(g["opt_keys"].apply(lambda ok: k in (ok or {})).sum())
+        opts.append({"type": o.get("type"), "code": o.get("code"), "name": o.get("name"), "msrp": o.get("msrp"), "matched": cnt})
+    opts.sort(key=lambda x: (x["type"] != "P", -(x["msrp"] or 0)))
+    ext = int((g["ext_color"].astype(str) == str(vehicle.get("ext_color"))).sum()) if vehicle.get("ext_color") not in (None, UNKNOWN, "") else None
+    inte = int((g["int_color"].astype(str) == str(vehicle.get("int_color"))).sum()) if vehicle.get("int_color") not in (None, UNKNOWN, "") else None
+    w = dict(SIM_WEIGHTS)
+    if not veh_opts:
+        w["options"] = 0.0
+    tot = sum(v for k, v in w.items() if (k != "ext" or ext is not None) and (k != "int" or inte is not None))
+    weights = {k: round(v / tot * 100) if tot else 0 for k, v in w.items()}
+    return {"n": n, "required": [(label, vehicle.get(f)) for f, label in REQUIRED if vehicle.get(f) not in (None, UNKNOWN, "")],
+            "years": years, "options": opts, "ext": ext, "ext_color": vehicle.get("ext_color"), "int": inte, "int_color": vehicle.get("int_color"),
+            "weights": weights}
 
 
 # ---------------------------------------------------------------- scoring
@@ -448,30 +486,53 @@ def _rank(rows: list, logic: Logic) -> list:
 
 
 def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Optional[dict]:
-    """Walk LEVELS from specific to broad; return the first level with enough history."""
-    pk = vehicle.get("packages") or []
-    usable = bool(key_families(pk) or minor_packages(pk))
-    for label, keys, need_options in LEVELS:
-        if need_options and not usable:
-            continue
-        if any(vehicle.get(k) in (None, UNKNOWN, 0, "", "0") for k in keys):
-            continue
+    """Build the comparison pool (exact on REQUIRED, then narrow by year), rank the stores in it."""
+    known = lambda f: vehicle.get(f) not in (None, UNKNOWN, 0, "", "0")  # noqa: E731
+
+    def exact(fields):
         mask = pd.Series(True, index=df.index)
-        for k in keys:
-            mask &= df[k].astype(str) == str(vehicle[k])
-        if need_options:
-            mask &= options_filter(df["packages"], pk)
-        sub = df[mask]
-        if len(sub) < logic.min_cohort:
+        for f in fields:
+            mask &= df[f].astype(str) == str(vehicle[f])
+        return mask
+
+    if vehicle.get("vin"):
+        df = df[df["vin"] != vehicle["vin"]]      # a car we sold before must not match itself
+    req = [f for f, _ in REQUIRED if known(f)]
+    attempts = [("Exact match", req)] + [(label, [f for f in fields if known(f)]) for label, fields in FALLBACKS]
+    for label, fields in attempts:
+        if not fields:
             continue
-        t = store_table(sub, logic, vehicle)
-        if t.empty or not t["ranked"].any():
+        pool = df[exact(fields)]
+        if len(pool) < logic.min_cohort:
             continue
-        match = {k: vehicle[k] for k in keys}
-        if need_options:
-            fams = key_families(pk)
-            match["options"] = ("has " + " + ".join(fams)) if fams else f"≥{int(PACKAGE_MATCH_SHARE * 100)}% of: " + ", ".join(pk)
-        return {"level": label, "match": match, "n": len(sub), "table": t, "best": t.iloc[0].to_dict(), "deals": sub}
+        # narrow by year: same year, else ±1, else ±2, else any year
+        year_label = "any year"
+        if known("year"):
+            yrs = pd.to_numeric(pool["year"], errors="coerce")
+            for span, yl in YEAR_SPANS:
+                sub = pool[(yrs - int(vehicle["year"])).abs() <= span]
+                if len(sub) >= logic.min_cohort:
+                    pool, year_label = sub, yl
+                    break
+        # narrow by mileage: ±5k, else ±10k, else ±20k, else any
+        mile_label = "any mileage"
+        if vehicle.get("mileage") is not None:
+            miles = pd.to_numeric(pool["mileage"], errors="coerce")
+            for span, ml in MILE_SPANS:
+                sub = pool[(miles - int(vehicle["mileage"])).abs() <= span]
+                if len(sub) >= logic.min_cohort:
+                    pool, mile_label = sub, ml
+                    break
+        t = store_table(pool, logic, vehicle)
+        if t.empty:
+            continue
+        # a specific pool beats a broad one even when no store reaches min_store: keep it and flag the data as thin
+        thin = not bool(t["ranked"].any())
+        match = {lab: vehicle[f] for f, lab in REQUIRED if f in fields}
+        match["year"] = year_label
+        match["mileage"] = mile_label
+        return {"level": f"{label} · {year_label} · {mile_label}", "exact": label == "Exact match", "thin": thin, "match": match,
+                "n": len(pool), "table": t, "best": t.iloc[0].to_dict(), "deals": pool}
     return None
 
 
@@ -552,10 +613,13 @@ def make_list(df: pd.DataFrame) -> list:
 def vehicle_from_spec(spec: dict, mileage=None, year=None, make=None) -> dict:
     deal = {"year": year or (spec or {}).get("year"), "make": make or (spec or {}).get("make"), "model": None, "mileage": mileage}
     veh = canonical(deal, spec)
+    veh["mileage"] = mileage
+    veh["vin"] = (spec or {}).get("vin")
     pk = (spec or {}).get("packages_list")
     if pk is None:
         raw = (spec or {}).get("packages")
         pk = json.loads(raw) if isinstance(raw, str) and raw.startswith("[") else []
     veh["packages"] = pk
     veh["key_pkgs"] = key_families(pk)
+    veh["opt_keys"] = option_keys(veh.get("options"))
     return veh

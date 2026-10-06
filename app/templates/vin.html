@@ -6,12 +6,17 @@
 {% if s.error %}<div class="rounded border border-rose-200 bg-rose-50 text-rose-800 px-4 py-2 text-sm mb-4">Decode failed: {{ s.error }}</div>{% else %}
 <p class="text-slate-600 mb-4">{{ s.year }} {{ s.make }} {{ s.model }} <span class="font-medium">{{ s.trim }}</span> <span class="text-slate-400">{{ s.version }}</span></p>
 <div class="grid md:grid-cols-4 gap-3 text-sm mb-6">
-  {% for label, val in [("Body", s.body_type), ("Drivetrain", s.drivetrain), ("Powertrain", s.powertrain_type), ("Engine", s.engine), ("Transmission", s.transmission),
-                        ("Exterior", s.ext_color), ("Interior", s.int_color), ("MSRP", s.msrp|money), ("Source", s.source)] %}
+  {% for label, val in [("Version", s.version), ("Manufacturer code", s.mfr_code), ("Body", s.body_type), ("Engine", s.engine), ("Fuel", s.fuel_type), ("Drivetrain", s.drivetrain),
+                        ("Powertrain", s.powertrain_type), ("Transmission", s.transmission), ("Exterior", s.ext_color), ("Interior", s.int_color), ("MSRP", s.msrp|money), ("Source", s.source)] %}
   <div class="rounded border border-slate-200 bg-white p-3"><div class="text-xs uppercase text-slate-500">{{ label }}</div><div>{{ val or '–' }}</div></div>
   {% endfor %}
 </div>
-{% if s.packages_list %}<div class="rounded border border-slate-200 bg-white p-3 text-sm mb-6"><div class="text-xs uppercase text-slate-500 mb-1">Factory packages</div>{% for pk in s.packages_list %}<span class="inline-block rounded bg-fj-light text-fj-dark px-2 py-0.5 mr-1 mb-1 text-xs">{{ pk }}</span>{% endfor %}</div>{% endif %}
+{% if s.options_list %}<div class="rounded border border-slate-200 bg-white p-3 text-sm mb-3">
+  <div class="text-xs uppercase text-slate-500 mb-1">Installed options <span class="normal-case">({{ s.options_list|length }})</span></div>
+  <div class="mb-1"><span class="text-xs text-slate-500 mr-2">P · packages</span>{% for o in s.options_list if o.type=='P' %}<span class="inline-block rounded bg-fj-light text-fj-dark px-2 py-0.5 mr-1 mb-1 text-xs" title="{{ o.code }}{% if o.msrp %} · ${{ o.msrp|int }}{% endif %}">{{ o.name }}</span>{% else %}<span class="text-xs text-slate-400">none</span>{% endfor %}</div>
+  <div><span class="text-xs text-slate-500 mr-2">O · options</span>{% for o in s.options_list if o.type=='O' %}<span class="inline-block rounded border border-slate-200 text-slate-700 px-2 py-0.5 mr-1 mb-1 text-xs" title="{{ o.code }}{% if o.msrp %} · ${{ o.msrp|int }}{% endif %}">{{ o.name }}</span>{% else %}<span class="text-xs text-slate-400">none</span>{% endfor %}</div>
+</div>{% endif %}
+{% if s.confidence %}<div class="text-xs text-slate-500 mb-6">Decode confidence: {% for k, v in s.confidence.items() %}<span class="mr-3">{{ k }} <b class="text-slate-700">{{ v }}</b></span>{% endfor %}</div>{% endif %}
 <form class="mb-6 text-sm flex items-end gap-2"><label>Mileage for placement<br><input name="mileage" type="number" value="{{ mileage or '' }}" class="border rounded px-2 py-1 w-32"></label><button class="bg-fj hover:bg-fj-dark text-white rounded px-3 py-1.5">Re-run</button></form>
 {% endif %}
 
@@ -26,7 +31,7 @@
 
 {% if r.rec %}
 <h2 class="text-lg font-semibold mb-1">Where to place it {{ info(logic_text(logic)) }}</h2>
-<p class="text-sm text-slate-500 mb-2">Matched on <em>{{ r.rec.level }}</em>: {% for k, v in r.rec.match.items() %}<span class="mr-2">{{ k.replace('_',' ') }} = <b>{{ v|t }}</b></span>{% endfor %} · {{ r.rec.n }} deals</p>
+<p class="text-sm text-slate-500 mb-2">Matched on <em class="{{ '' if r.rec.exact else 'text-amber-700' }}">{{ r.rec.level }}</em>{% if r.rec.thin %} <span class="text-amber-700">· thin data: no store has {{ logic.min_store }}+ matching sales</span>{% endif %}: {% for k, v in r.rec.match.items() %}<span class="mr-2">{{ k.replace('_',' ') }} = <b>{{ v|t }}</b></span>{% endfor %} · {{ r.rec.n }} deals</p>
 <div class="rounded border border-slate-200 bg-white overflow-x-auto mb-2">{{ store_rank_table(r.table, logic, show_similar=True, tid=vin) }}</div>
 {% elif not s.error %}
 <div class="rounded border border-fj-mid bg-fj-light text-fj-dark px-4 py-2 text-sm">{{ r.error }}</div>

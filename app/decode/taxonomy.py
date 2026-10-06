@@ -5,6 +5,7 @@ come from the MarketCheck NeoVIN decode when we have it; otherwise from the Adve
 (Mercedes sales codes such as GLC300W4 are expanded so they line up roughly with NeoVIN naming).
 """
 from __future__ import annotations
+import json
 import re
 
 UNKNOWN = "(unknown)"
@@ -116,6 +117,8 @@ def canonical(deal: dict, spec: dict) -> dict:
     year = deal.get("year")
     make = (deal.get("make") or (spec or {}).get("make") or UNKNOWN).upper()
     decoded = bool(spec) and spec.get("error") is None and bool(spec.get("model"))
+    version = mfr = engine = fuel = ext_name = int_name = UNKNOWN
+    options = []
     if decoded:
         model = clean_model(make, spec.get("model"))
         trim = clean_trim(make, spec.get("trim"), spec.get("version")).upper()
@@ -123,6 +126,18 @@ def canonical(deal: dict, spec: dict) -> dict:
         drive = norm_drive(spec.get("drivetrain"))
         power = norm_power(spec.get("powertrain_type"))
         ext = spec.get("ext_base") or UNKNOWN
+        version = (spec.get("version") or spec.get("trim") or UNKNOWN).strip().upper()
+        mfr = (spec.get("mfr_code") or UNKNOWN).strip().upper()
+        engine = (spec.get("engine") or UNKNOWN).strip().upper()
+        fuel = (spec.get("fuel_type") or UNKNOWN).strip().upper()
+        ext_name = (spec.get("ext_color") or UNKNOWN).strip().upper()
+        int_name = (spec.get("int_color") or UNKNOWN).strip().upper()
+        options = spec.get("options") or []
+        if isinstance(options, str):
+            try:
+                options = json.loads(options)
+            except ValueError:
+                options = []
     else:
         raw_model = deal.get("model") or UNKNOWN
         if "MERC" in make:
@@ -134,4 +149,6 @@ def canonical(deal: dict, spec: dict) -> dict:
     spec_key = f"{drive} · {power}"
     return {"year": int(year) if year else 0, "make": make, "model": str(model), "trim": str(trim), "body": str(body),
             "drivetrain": drive, "powertrain": power, "spec": spec_key, "mileage_band": mileage_band(deal.get("mileage")),
-            "decoded": decoded, "ext_base": ext}
+            "decoded": decoded, "ext_base": ext,
+            "version": version, "mfr_code": mfr, "engine": engine, "fuel": fuel, "ext_color": ext_name, "int_color": int_name,
+            "options": options}

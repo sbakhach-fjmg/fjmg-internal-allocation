@@ -3,7 +3,7 @@
 {% block body %}
 <div class="max-w-3xl mx-auto {{ 'mb-6' if results is not none else 'mt-10 mb-10' }}">
   <div class="text-center mb-6">
-    <h1 class="text-3xl font-semibold tracking-tight">Internal Allocator {{ info("Upload this week's list (xlsx or csv with VIN and Mileage columns) or paste VINs. Each VIN is decoded through MarketCheck and matched as closely as possible on year · model · trim · spec · miles · options. Options means the car's key packages (AMG Line, Night, Premium, Driver Assistance, M Sport, Black Optic, ...) must all be on the sold unit. Miles, spec and year are relaxed first while keeping options, then options are dropped and the chain repeats, down to model, body and make, until a level has ≥" ~ logic.min_cohort ~ " deals. " ~ logic_text(logic)) }}</h1>
+    <h1 class="text-3xl font-semibold tracking-tight">Internal Allocator {{ info("Upload this week's list (xlsx or csv with VIN and Mileage columns) or paste VINs. Each VIN is decoded through MarketCheck and compared only with sold units that match it exactly on make, model, trim/version, manufacturer code, body, engine and fuel type; the same model year and ±5k miles are preferred, widening only when there are fewer than " ~ logic.min_cohort ~ " sales. Units are then scored on shared installed options (packages 2×), year closeness and color. " ~ logic_text(logic)) }}</h1>
     <p class="text-slate-500 mt-1">Which store should each incoming vehicle go to?</p>
   </div>
 
@@ -48,11 +48,11 @@ dz.addEventListener('drop', ev => { const inp = document.getElementById('fileInp
   {% for r in results %}
   <tr>
     <td><a class="text-fj" href="/vin/{{ r.vin }}{% if r.mileage %}?mileage={{ r.mileage }}{% endif %}">{{ r.vin or r.raw }}</a></td>
-    {% if r.veh %}<td>{{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} <span class="text-slate-500">{{ r.veh.trim }} · {{ r.veh.spec }} · {{ r.veh.body }}</span>{% if r.veh.key_pkgs %}<br>{% for f in r.veh.key_pkgs %}<span class="inline-block rounded bg-fj-light text-fj-dark px-1.5 py-0.5 mr-1 text-[11px]">{{ f }}</span>{% endfor %}{% endif %}</td>{% else %}<td class="text-slate-400">–</td>{% endif %}
+    {% if r.veh %}<td>{{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} <span class="text-slate-500">{{ r.veh.version }} · {{ r.veh.mfr_code }} · {{ r.veh.body }} · {{ r.veh.engine }}</span>{% set pks = r.veh.options|selectattr('type','equalto','P')|list %}{% if pks %}<br>{% for o in pks %}<span class="inline-block rounded bg-fj-light text-fj-dark px-1.5 py-0.5 mr-1 text-[11px]">{{ o.name }}</span>{% endfor %}{% endif %}{% set os = r.veh.options|selectattr('type','equalto','O')|list %}{% if os %}<span class="text-[11px] text-slate-500">+{{ os|length }} option{{ 's' if os|length != 1 }}</span>{% endif %}</td>{% else %}<td class="text-slate-400">–</td>{% endif %}
     <td class="text-right">{{ r.mileage|num }} <span class="text-xs text-slate-400">{{ r.veh.mileage_band if r.veh }}</span></td>
     {% if r.rec %}
-      <td class="text-xs">{{ r.rec.level }}</td><td class="text-right">{{ r.rec.n }}</td>
-      {% set ranked = r.table|selectattr('ranked')|list %}
+      <td class="text-xs {{ '' if r.rec.exact else 'text-amber-700' }}">{{ r.rec.level }}{% if r.rec.thin %} <span class="text-amber-700" title="No store has {{ logic.min_store }}+ matching sales; #1 is the volume leader among thin stores">· thin</span>{% endif %}</td><td class="text-right">{{ r.rec.n }}</td>
+      {% set ranked = (r.table|selectattr('ranked')|list) or r.table %}
       <td class="font-medium bg-fj-light">{{ ranked[0].store_name }} <span class="text-xs text-slate-500">n={{ ranked[0].n }}</span></td>
       <td class="text-right bg-fj-light">{{ gross(ranked[0].total_hat) }}</td><td class="text-right bg-fj-light">{{ ranked[0].days_hat|num }}</td>
       <td class="text-xs">{% if ranked|length > 1 %}{{ ranked[1].store }} · {{ gross(ranked[1].total_hat) }} · {{ ranked[1].days_hat|num }}d{% endif %}</td>

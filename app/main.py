@@ -22,7 +22,8 @@ from app.ingest.sales import parse_sales, store_deals, ORIGIN
 from app.decode import marketcheck as mc
 from app.decode.taxonomy import UNKNOWN
 from app.analysis import cohorts as co
-from app.analysis.cohorts import Logic, CRITERIA, LEVELS, TIE_PRESETS, tie_preset_of, KEY_PACKAGES, PACKAGE_WEIGHT, KEY_PACKAGE_WEIGHT, PACKAGE_MATCH_SHARE
+from app.analysis.cohorts import (Logic, CRITERIA, LEVELS, MATCH_STEPS, REQUIRED, TIE_PRESETS, tie_preset_of, KEY_PACKAGES, SIM_WEIGHTS,
+                                  OPTION_WEIGHTS, YEAR_SPANS, MILE_SPANS)
 from app.decode.taxonomy import MILEAGE_BANDS
 from app.analysis.enrich import backfill, decode_counts
 from app.auth import AuthMiddleware, password_ok, decode_password_ok, set_session, COOKIE
@@ -85,7 +86,7 @@ def f_title(v):
 templates.env.filters.update(money=f_money, num=f_num, pct=f_pct, t=f_title)
 templates.env.globals.update(STORES=STORES, store_name=store_name, UNKNOWN=UNKNOWN, ORIGIN=ORIGIN, now=datetime.now,
                              MIN_N_STORE=MIN_N_STORE, MIN_N_BEST=MIN_N_BEST, MIN_N_COHORT=MIN_N_COHORT, PRIOR_K=PRIOR_K, ANALYSIS_MONTHS=ANALYSIS_MONTHS,
-                             GROSS_OVERRIDE_PCT=GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS=GROSS_OVERRIDE_ABS, CRITERIA=CRITERIA, LEVELS=LEVELS, MIN_DAYS=10, TIE_PRESETS=TIE_PRESETS, tie_preset_of=tie_preset_of,
+                             GROSS_OVERRIDE_PCT=GROSS_OVERRIDE_PCT, GROSS_OVERRIDE_ABS=GROSS_OVERRIDE_ABS, CRITERIA=CRITERIA, LEVELS=LEVELS, MATCH_STEPS=MATCH_STEPS, MIN_DAYS=10, TIE_PRESETS=TIE_PRESETS, tie_preset_of=tie_preset_of,
                              PLACEMENT_MAX_VINS=PLACEMENT_MAX_VINS)
 
 
@@ -280,6 +281,14 @@ def place(vehicles: list, logic: Logic) -> list:
             spec = mc.decode_and_store(con, v["vin"])
             pk = spec.get("packages")
             spec["packages_list"] = json.loads(pk) if isinstance(pk, str) and pk.startswith("[") else []
+            op = spec.get("options")
+            spec["options_list"] = json.loads(op) if isinstance(op, str) and op.startswith("[") else []
+            try:
+                raw = json.loads(spec.get("raw") or "{}")
+            except ValueError:
+                raw = {}
+            spec["confidence"] = {k.replace("_confidence", "").replace("_", " "): raw.get(k) for k in
+                                  ("trim_confidence", "version_confidence", "transmission_confidence", "listing_confidence", "record_confidence") if raw.get(k) is not None}
             if spec.get("error"):
                 results.append({**v, "spec": spec, "error": f"decode failed: {spec['error']}"})
                 continue
@@ -391,7 +400,7 @@ def rules_for(logic: Logic) -> list:
     excluded = ", ".join(sorted(EXCLUDED_STORES))
     bands = " · ".join(b[2] for b in MILEAGE_BANDS)
     fams = ", ".join(f for f, _ in KEY_PACKAGES)
-    levels = "".join(f"<li>{label}</li>" for label, _, _ in LEVELS)
+    levels = "".join(f"<li>{step}</li>" for step in MATCH_STEPS)
     preset = tie_preset_of(logic)
     chain = " → ".join(CRITERIA[c][0] for c in logic.order)
     return [
@@ -408,8 +417,9 @@ def rules_for(logic: Logic) -> list:
             {"title": "Trims normalized and upper-cased", "body": "Mercedes trims are spaced consistently (C300 → C 300, GLC350e → GLC 350E) and drivetrain words like 4MATIC are removed from the trim, since drivetrain lives in Spec. A \"Base\" Mercedes trim is replaced by the version name (EQS 450+). All trims display in upper case."},
             {"title": "Body words stripped from model", "body": "Trailing body words are removed from model names so C-Class Sedan and C-Class group together. Genuinely different models keep their names: EQS SUV is not EQS, Bronco 4-Door is not Bronco."},
             {"title": "Mileage bands", "body": f"Mileage is grouped into bands: <b>{bands}</b>. Placement uses the mileage you supply with the VIN; a VIN decode does not carry mileage."},
-            {"title": "Spec is drivetrain and powertrain", "body": "Spec = drivetrain (4WD / 2WD) · powertrain (Combustion, MHEV, HEV, PHEV, BEV). It separates a GLC 300 from a GLC 300 4MATIC, and a gas car from a hybrid."},
-            {"title": "Key package families", "body": f"Factory packages are grouped into families so spelling variants match: <b>{fams}</b>. AMG Line Exterior and AMG Line w/Night both count as AMG Line. Accessory items (floor mats, cargo trays, PIO accessories) are ignored."},
+            {"title": "Spec is drivetrain and powertrain", "body": "On the Models page, Spec = drivetrain (4WD / 2WD) · powertrain (Combustion, MHEV, HEV, PHEV, BEV). Placement matching uses the fuller version string and manufacturer code instead."},
+            {"title": "Key package families", "body": f"On the Models page, factory packages are grouped into families so spelling variants roll up together: <b>{fams}</b>. Placement matching uses the exact option codes instead."},
+            {"title": "Decode confidence shown", "body": "MarketCheck reports how confident it is in the trim, version and transmission it decoded, plus an overall record confidence. These are shown on the VIN page so a low-confidence decode can be sanity-checked."},
             {"title": "Base cars are real", "body": "A unit with no packages is a base-spec car, not missing data. Against an optioned car it counts as an options mismatch; against another base car the options half of the score simply does not apply."},
             {"title": "Undecoded VINs fall back", "body": "If a VIN has not been decoded yet, its model and trim are approximated from the Advent model code (Mercedes sales codes are expanded) and spec shows as (unknown) until the backfill catches up."},
         ]),
@@ -420,16 +430,19 @@ def rules_for(logic: Logic) -> list:
             {"title": "Thin stores are not ranked", "body": f"A store needs at least <b>{logic.min_store}</b> deals in a cohort to be ranked for it. Thinner stores are listed in grey for reference only."},
             {"title": "Adjusted figures shrink small samples", "body": f"Adj front / back / total / days pull a store's average toward the group-wide average for that car in proportion to how few deals it has: (n × store avg + K × group avg) ÷ (n + K), with K = <b>{int(logic.k)}</b>. A store with {int(logic.k)} deals is weighted half on its own numbers."},
             {"title": "Gross per slot per year", "body": "Adj total gross × 365 ÷ adj days to sell: what one parking spot earns in a year if you keep putting this car there. Informational unless chosen as a criterion."},
-            {"title": "Similar units score", "body": f"For a vehicle being placed, each sold unit scores 0–1: <b>{int((1-PACKAGE_WEIGHT)*100)}%</b> for matching spec attributes (trim, drivetrain, powertrain, body, mileage band, color, year) and <b>{int(PACKAGE_WEIGHT*100)}%</b> for sharing its factory packages, where a key package weighs <b>{int(KEY_PACKAGE_WEIGHT)}×</b> a minor one. A store's Similar figure is the sum, shown out of its unit count; click it for the breakdown."},
-            {"title": "Options match column", "body": "The average share of the incoming car's packages found on the store's sold units, shown on its own next to Similar so the options effect is visible."},
+            {"title": "Similar units score", "body": f"Within the comparison pool each sold unit scores 0–1: <b>{int(SIM_WEIGHTS['options']*100)}%</b> installed options shared with the car, <b>{int(SIM_WEIGHTS['year']*100)}%</b> year closeness, <b>{int(SIM_WEIGHTS['ext']*100)}%</b> exterior color match, <b>{int(SIM_WEIGHTS['int']*100)}%</b> interior color match (weights renormalize when the car has no options or an unknown color). A store's Similar figure is the sum, shown out of its unit count; click it for the breakdown."},
+            {"title": "Options match column", "body": "The average share of the incoming car's installed options (P and O) found on the store's sold units, shown next to Similar so the options effect is visible on its own."},
             {"title": "Most similar needs a vehicle", "body": "The \"Most similar units sold\" criterion only applies on Placement and VIN pages, where there is a car to compare to. On the Models and Stores pages it is skipped and the next criterion in your list applies."},
         ]),
         ("Placement", [
-            {"title": "Key packages must match first", "body": f"At the options levels a sold unit only counts if it carries <b>every</b> key package family the incoming car has. A car with only minor packages needs at least {int(PACKAGE_MATCH_SHARE*100)}% of them matched. A car with no usable packages skips the options levels."},
-            {"title": "Relax one thing at a time", "body": f"Matching starts at the most specific level and relaxes miles, then spec, then year while keeping options, then drops options and repeats, down to model, body and make:<ol class='list-decimal ml-5 mt-1'>{levels}</ol>"},
+            {"title": "Seven fields must match exactly", "body": "The comparison pool is every sold unit that matches the incoming car exactly on <b>make, model, trim/version, manufacturer code, body, engine and fuel type</b>. Trim/version is MarketCheck's version string (e.g. CLS 450 4MATIC); the manufacturer code is the factory sales code (e.g. CLS450C4)."},
+            {"title": "Same year first, then adjacent", "body": "Within the pool the same model year is used when it has enough sales; otherwise ±1 year, then ±2. Year closeness also feeds the Similar score (same year 1.0, ±1 0.7, ±2 0.4)."},
+            {"title": "Mileage within 5k", "body": "Units within 5,000 miles either way of the incoming car are preferred; the band widens to 10k and then 20k only when it has too few sales. Enter mileage with each VIN; a VIN decode does not carry it."},
+            {"title": "Options: match as many as possible", "body": "Every installed item MarketCheck lists is used — P (factory packages) and O (standalone options). A unit scores by the share of the car's options it also carries, packages weighing 2× standalone options. Nothing is required; more matches rank higher."},
+            {"title": "Colors are a bonus", "body": "Matching exterior color adds a smaller bonus, matching interior color a smaller one still. They never exclude a unit."},
+            {"title": "Fallback when the pool is thin", "body": f"If fewer than the cohort minimum match exactly, the pool relaxes to same version → same trim → same model → same make and body → same make, and the result is labelled accordingly.<ol class='list-decimal ml-5 mt-1'>{levels}</ol>"},
             {"title": "Minimum deals per level", "body": f"A level is only used when it has at least <b>{logic.min_cohort}</b> deals and at least one store that qualifies to be ranked. Otherwise the next, broader level is tried. The level used is shown with each result."},
             {"title": "150 VINs per run", "body": f"A placement run accepts up to <b>{PLACEMENT_MAX_VINS}</b> VINs (duplicates removed first). Longer lists are cut to the first {PLACEMENT_MAX_VINS} with a notice; split them into batches. This also caps how many MarketCheck calls one run can trigger."},
-            {"title": "Mileage comes from your list", "body": "Enter mileage with each VIN (\"VIN mileage\" per line, or a Mileage column in the sheet). Without it the mileage band is unknown and the mileage levels are skipped."},
             {"title": "Sold by us before", "body": "If an incoming VIN has been retailed by the group inside the window, that history is shown with the recommendation."},
         ]),
         ("Display", [
