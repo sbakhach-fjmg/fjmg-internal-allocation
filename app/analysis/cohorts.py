@@ -115,9 +115,13 @@ CRITERIA = {
     "volume": ("Most units sold", "The store that has sold the most of this car is #1; the rest follow in volume order. Another store takes #1 only "
                                   "when its adj total gross per unit beats the leader's by both override margins and it has at least the "
                                   "challenger minimum of sales.", "n", False),
-    "total": ("Best total gross", "Adj total deal gross per unit (front + back), shrunk toward the cohort mean. Ties go to volume.", "total_hat", False),
-    "front": ("Best front-end gross", "Adj front gross per unit. Reflects pricing power and acquisition cost for this car at that store.", "front_hat", False),
-    "back": ("Best back-end gross", "Adj back (F&I) gross per unit. Caution: back gross often says more about the store's finance office than about the car.",
+    "sum_total": ("Most total gross dollars", "Sum of total deal gross across the store's sales of this car (average × units). Answers where the car makes "
+                                               "the most money overall — a store selling many at a modest margin can beat one selling few at a high margin.", "sum_total", False),
+    "sum_front": ("Most front-end gross dollars", "Sum of front gross across the store's sales of this car (average × units). Same idea as above, front end only.",
+                  "sum_front", False),
+    "total": ("Best total gross per unit", "Adj total deal gross per unit (front + back), shrunk toward the cohort mean. Ties go to volume.", "total_hat", False),
+    "front": ("Best front-end gross per unit", "Adj front gross per unit. Reflects pricing power and acquisition cost for this car at that store.", "front_hat", False),
+    "back": ("Best back-end gross per unit", "Adj back (F&I) gross per unit. Caution: back gross often says more about the store's finance office than about the car.",
              "back_hat", False),
     "slot": ("Gross per slot per year", "Adj total gross × 365 / adj days to sell: what one inventory slot earns in a year. Rewards profit and turn together.",
              "annual", False),
@@ -130,7 +134,7 @@ CRITERIA = {
 }
 
 
-DEFAULT_ORDER = ["volume", "total", "front", "back", "slot", "days", "similar"]
+DEFAULT_ORDER = ["volume", "sum_total", "total", "front", "sum_front", "back", "slot", "days", "similar"]
 
 
 @dataclass
@@ -392,6 +396,8 @@ def store_table(sub: pd.DataFrame, logic: Logic = DEFAULT, vehicle: Optional[dic
         rows.append({"store": code, "store_name": store_name(code), "n": n,
                      "front": _mean(g["front_gross"]), "back": _mean(g["back_gross"]), "total": _mean(g["total_gross"]),
                      "front_hat": _shrink(n, _mean(g["front_gross"]), pri["front"], k), "back_hat": _shrink(n, _mean(g["back_gross"]), pri["back"], k),
+                     "sum_total": float(pd.to_numeric(g["total_gross"], errors="coerce").sum()), "sum_front": float(pd.to_numeric(g["front_gross"], errors="coerce").sum()),
+                     "sum_back": float(pd.to_numeric(g["back_gross"], errors="coerce").sum()),
                      "total_hat": total_hat, "days": _median(g["days_to_sell"]), "days_hat": days_hat,
                      "annual": (total_hat or 0.0) * 365.0 / max(days_hat or pri["days"], MIN_DAYS),
                      "similar": similarity(g, vehicle), "opt_match": options_match(g, vehicle), "sim_detail": sim_detail(g, vehicle),
@@ -476,6 +482,8 @@ def _tied(crit: str, a, b, logic: Logic) -> bool:
         return abs(a - b) <= logic.tie_units_pct * max(a, b)
     if crit in ("total", "front", "back"):
         return abs(a - b) <= logic.tie_gross
+    if crit in ("sum_total", "sum_front"):
+        return abs(a - b) <= logic.tie_rel * max(abs(a), abs(b))
     if crit == "days":
         return abs(a - b) <= logic.tie_days
     return abs(a - b) <= logic.tie_rel * max(abs(a), abs(b))

@@ -15,7 +15,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
 {%- endmacro %}
 
 {% macro store_rank_table(rows, logic, show_similar=False, tid='t') -%}
-{% set hl = {'volume':'n','total':'total_hat','front':'front_hat','back':'back_hat','slot':'annual','days':'days_hat','similar':'similar'}[logic.rank_by] %}
+{% set hl = {'volume':'n','sum_total':'sum_total','sum_front':'sum_front','total':'total_hat','front':'front_hat','back':'back_hat','slot':'annual','days':'days_hat','similar':'similar'}[logic.rank_by] %}
 <table class="tbl text-sm w-full border-collapse">
   <thead><tr class="text-left text-xs uppercase text-slate-500">
     {% if show_similar %}<th class="w-6"></th>{% endif %}<th>#</th><th>Store</th>
@@ -24,6 +24,8 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
     <th class="text-right">Avg front</th><th class="text-right {{ 'text-slate-900' if hl=='front_hat' }}">Adj front</th>
     <th class="text-right">Avg back</th><th class="text-right {{ 'text-slate-900' if hl=='back_hat' }}">Adj back</th>
     <th class="text-right">Avg total</th><th class="text-right {{ 'text-slate-900' if hl=='total_hat' }}" title="Average total gross shrunk toward the cohort mean">Adj total</th>
+    <th class="text-right {{ 'text-slate-900' if hl=='sum_total' }}" title="Sum of total gross across the store's sales of this car (avg × units)">Total $</th>
+    <th class="text-right {{ 'text-slate-900' if hl=='sum_front' }}" title="Sum of front gross across the store's sales of this car">Front $</th>
     <th class="text-right">Med days</th><th class="text-right {{ 'text-slate-900' if hl=='days_hat' }}" title="Average days to sell shrunk toward the cohort mean">Adj days</th>
     <th class="text-right {{ 'text-slate-900' if hl=='annual' }}" title="Adj total × 365 / adj days">Gross/slot/yr</th>
     <th class="text-right">Avg price</th><th class="text-right">Med miles</th>
@@ -39,6 +41,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
       <td class="text-right">{{ gross(s.front) }}</td><td class="text-right {{ 'font-semibold' if hl=='front_hat' }}">{{ gross(s.front_hat) }}</td>
       <td class="text-right">{{ gross(s.back) }}</td><td class="text-right {{ 'font-semibold' if hl=='back_hat' }}">{{ gross(s.back_hat) }}</td>
       <td class="text-right">{{ gross(s.total) }}</td><td class="text-right {{ 'font-semibold' if hl=='total_hat' }}">{{ gross(s.total_hat) }}</td>
+      <td class="text-right {{ 'font-semibold' if hl=='sum_total' }}">{{ gross(s.sum_total) }}</td><td class="text-right {{ 'font-semibold' if hl=='sum_front' }}">{{ gross(s.sum_front) }}</td>
       <td class="text-right">{{ s.days|num }}</td><td class="text-right {{ 'font-semibold' if hl=='days_hat' }}">{{ s.days_hat|num }}</td>
       <td class="text-right {{ 'font-semibold' if hl=='annual' }}">{{ gross(s.annual) }}</td>
       <td class="text-right">{{ s.price|money }}</td><td class="text-right">{{ s.miles|num }}</td>
@@ -96,7 +99,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
       <td></td>
       <td colspan="{{ m.cols|length + 7 }}" class="py-2">
         <table class="text-sm">
-          <thead><tr class="text-left text-[11px] uppercase text-slate-500"><th class="pr-3">#</th><th class="pr-6">Store</th><th class="text-right pr-4">Sold</th><th class="text-right pr-4">Avg front</th><th class="text-right pr-4">Avg back</th><th class="text-right pr-4">Avg total</th><th class="text-right pr-4">Adj total</th><th class="text-right pr-4">Med days</th><th class="text-right pr-4">Adj days</th></tr></thead>
+          <thead><tr class="text-left text-[11px] uppercase text-slate-500"><th class="pr-3">#</th><th class="pr-6">Store</th><th class="text-right pr-4">Sold</th><th class="text-right pr-4">Avg front</th><th class="text-right pr-4">Avg back</th><th class="text-right pr-4">Avg total</th><th class="text-right pr-4">Adj total</th><th class="text-right pr-4" title="Sum of total gross (avg × units)">Total $</th><th class="text-right pr-4" title="Sum of front gross">Front $</th><th class="text-right pr-4">Med days</th><th class="text-right pr-4">Adj days</th></tr></thead>
           <tbody>
           {% for c in r.ranking %}
           <tr class="border-t border-slate-200 {{ 'font-medium' if c.rank==1 else ('text-slate-400' if not c.ranked else '') }}">
@@ -104,6 +107,7 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
             <td class="pr-6">{{ c.store_name }} <span class="text-xs text-slate-400">{{ c.store }}</span>{% if not c.ranked %} <span class="text-xs text-slate-400">thin</span>{% endif %}</td>
             <td class="text-right pr-4">{{ c.n }}</td>
             <td class="text-right pr-4">{{ gross(c.front) }}</td><td class="text-right pr-4">{{ gross(c.back) }}</td><td class="text-right pr-4">{{ gross(c.total) }}</td><td class="text-right pr-4">{{ gross(c.total_hat) }}</td>
+            <td class="text-right pr-4">{{ gross(c.sum_total) }}</td><td class="text-right pr-4">{{ gross(c.sum_front) }}</td>
             <td class="text-right pr-4">{{ c.days|num }}</td><td class="text-right pr-4">{{ c.days_hat|num }}</td>
           </tr>
           {% endfor %}

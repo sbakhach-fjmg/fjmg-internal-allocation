@@ -356,7 +356,7 @@ def placement_export(request: Request, text: str = Form("")):
         for _, s in t.iterrows():
             detail.append({"VIN": r["vin"], "Matched on": rec["level"], "Store": s["store_name"], "Code": s["store"], "Rank": s["rank"],
                            "n": s["n"], "Similar": s["similar"], "Options match": s["opt_match"], "Avg front": s["front"], "Adj front": s["front_hat"], "Avg back": s["back"],
-                           "Adj back": s["back_hat"], "Avg total": s["total"], "Adj total": s["total_hat"], "Median days": s["days"],
+                           "Adj back": s["back_hat"], "Avg total": s["total"], "Adj total": s["total_hat"], "Total $": s["sum_total"], "Front $": s["sum_front"], "Median days": s["days"],
                            "Adj days": s["days_hat"], "Gross / slot / yr": s["annual"], "Avg price": s["price"]})
     return _xlsx({"Placement": pd.DataFrame(rows), "Store detail": pd.DataFrame(detail)}, "placement")
 
@@ -425,6 +425,7 @@ def rules_for(logic: Logic) -> list:
         ]),
         ("Ranking", [
             {"title": "Volume leader is number one", "body": "Under the default criterion the store that has sold the most of a car ranks first and the rest follow in volume order. Volume is the proven-market signal."},
+            {"title": "Gross dollars vs gross per unit", "body": "Two kinds of gross criteria exist. <b>Per unit</b> (adj total / front / back) asks where the car makes the most per copy. <b>Dollars</b> (Total $, Front $ = average × units) asks where it makes the most money overall, so a store selling 291 at $1,800 ($520k) outranks one selling 97 at $3,600 ($348k). Pick whichever matches the decision on the Logic tab."},
             {"title": "Gross override", "body": f"When \"Most units sold\" is first, another store takes #1 only if its adjusted total gross is at least <b>{m(logic.over_abs)}</b> more per car than the volume leader's" + (f" and at least {int(logic.over_pct*100)}% more" if logic.over_pct > 0 else "") + f", and it has at least <b>{logic.min_best}</b> sales of its own."},
             {"title": "Priority order with tie bands", "body": f"Criteria are ranked in the order set on the Logic tab, currently <b>{chain}</b>. The first criterion decides; stores within the tie band on it count as tied and the next criterion breaks the tie. Tie preset: <b>{TIE_PRESETS[preset][0] if preset in TIE_PRESETS else 'Custom'}</b> (units within {int(logic.tie_units_pct*100)}%, gross within {m(logic.tie_gross)}, days within {int(logic.tie_days)})."},
             {"title": "Thin stores are not ranked", "body": f"A store needs at least <b>{logic.min_store}</b> deals in a cohort to be ranked for it. Thinner stores are listed in grey for reference only."},
