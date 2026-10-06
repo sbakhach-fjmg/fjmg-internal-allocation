@@ -36,15 +36,16 @@ from app.decode.taxonomy import canonical, UNKNOWN, BAND_ORDER
 # Fields that must match exactly to be in the comparison pool (field, label)
 REQUIRED = [("make", "Make"), ("model", "Model"), ("version", "Trim / version"), ("mfr_code", "Manufacturer code"),
             ("body", "Body"), ("engine", "Engine"), ("fuel", "Fuel type")]
-YEAR_SPANS = [(0, "same year"), (1, "±1 year"), (2, "±2 years")]
-MILE_SPANS = [(5000, "within 5k miles"), (10000, "within 10k miles"), (20000, "within 20k miles")]
+YEAR_SPANS = [(0, "same yr"), (1, "±1 yr"), (2, "±2 yr")]
+MILE_SPANS = [(5000, "≤5k mi"), (10000, "≤10k mi")]
+MILE_HARD_LIMIT = 10000     # units farther than this from the car's mileage are never comparable
 # Fallbacks when the exact pool is too small: (label, fields that must still match)
 FALLBACKS = [("Same version (ignoring manufacturer code, engine, fuel)", ["make", "model", "version"]),
              ("Same trim", ["make", "model", "trim"]), ("Same model", ["make", "model"]), ("Same make and body", ["make", "body"]), ("Same make", ["make"])]
 MATCH_STEPS = [
     "Exact match on make, model, trim/version, manufacturer code, body, engine and fuel type",
     "Same model year; widen to ±1 then ±2 years only if the same year has too few sales",
-    "Mileage within 5,000 miles either way; widen to 10k then 20k only if the band has too few sales",
+    "Mileage within 5,000 miles either way, widening to 10,000 only if the band has too few sales; beyond 10,000 miles a unit is never comparable",
     "Score each unit on installed options shared with the car (packages weigh 2×, standalone options 1×)",
     "Bonus for matching exterior color, smaller bonus for matching interior color",
     "If the exact pool is too small: same version → same trim → same model → same make and body → same make (flagged)",
@@ -486,8 +487,15 @@ def _rank(rows: list, logic: Logic) -> list:
 
 
 def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Optional[dict]:
-    """Build the comparison pool (exact on REQUIRED, then narrow by year), rank the stores in it."""
+    """Build the comparison pool: mileage within the hard limit, exact on REQUIRED (relaxing only if too thin),
+    then prefer the same year and the tighter mileage band. Rank the stores in it."""
     known = lambda f: vehicle.get(f) not in (None, UNKNOWN, 0, "", "0")  # noqa: E731
+    if vehicle.get("vin"):
+        df = df[df["vin"] != vehicle["vin"]]      # a car we sold before must not match itself
+    mile_limited = vehicle.get("mileage") is not None
+    if mile_limited:
+        miles = pd.to_numeric(df["mileage"], errors="coerce")
+        df = df[(miles - int(vehicle["mileage"])).abs() <= MILE_HARD_LIMIT]
 
     def exact(fields):
         mask = pd.Series(True, index=df.index)
@@ -495,47 +503,51 @@ def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Opti
             mask &= df[f].astype(str) == str(vehicle[f])
         return mask
 
-    if vehicle.get("vin"):
-        df = df[df["vin"] != vehicle["vin"]]      # a car we sold before must not match itself
     req = [f for f, _ in REQUIRED if known(f)]
-    attempts = [("Exact match", req)] + [(label, [f for f in fields if known(f)]) for label, fields in FALLBACKS]
+    attempts = [("Exact", req)] + [(label, [f for f in fields if known(f)]) for label, fields in FALLBACKS]
+    chosen = None
     for label, fields in attempts:
         if not fields:
             continue
         pool = df[exact(fields)]
-        if len(pool) < logic.min_cohort:
+        if pool.empty:
             continue
-        # narrow by year: same year, else ±1, else ±2, else any year
-        year_label = "any year"
-        if known("year"):
-            yrs = pd.to_numeric(pool["year"], errors="coerce")
-            for span, yl in YEAR_SPANS:
-                sub = pool[(yrs - int(vehicle["year"])).abs() <= span]
-                if len(sub) >= logic.min_cohort:
-                    pool, year_label = sub, yl
-                    break
-        # narrow by mileage: ±5k, else ±10k, else ±20k, else any
-        mile_label = "any mileage"
-        if vehicle.get("mileage") is not None:
-            miles = pd.to_numeric(pool["mileage"], errors="coerce")
-            for span, ml in MILE_SPANS:
-                sub = pool[(miles - int(vehicle["mileage"])).abs() <= span]
-                if len(sub) >= logic.min_cohort:
-                    pool, mile_label = sub, ml
-                    break
-        t = store_table(pool, logic, vehicle)
-        if t.empty:
-            continue
-        # a specific pool beats a broad one even when no store reaches min_store: keep it and flag the data as thin
-        thin = not bool(t["ranked"].any())
-        match = {lab: vehicle[f] for f, lab in REQUIRED if f in fields}
-        match["year"] = year_label
-        match["mileage"] = mile_label
-        return {"level": f"{label} · {year_label} · {mile_label}", "exact": label == "Exact match", "thin": thin, "match": match,
-                "n": len(pool), "table": t, "best": t.iloc[0].to_dict(), "deals": pool,
-                "pool_detail": sim_detail(pool, vehicle), "relaxed": [lab for f, lab in REQUIRED if known(f) and f not in fields],
-                "stores_in_pool": int(pool["dealer_code"].nunique())}
-    return None
+        if chosen is None:
+            chosen = (label, fields, pool)          # most specific non-empty pool, used if nothing reaches the minimum
+        if len(pool) >= logic.min_cohort:
+            chosen = (label, fields, pool)
+            break
+    if chosen is None:
+        return None
+    label, fields, pool = chosen
+    year_label = "any yr"
+    if known("year"):
+        yrs = pd.to_numeric(pool["year"], errors="coerce")
+        for span, yl in YEAR_SPANS:
+            sub = pool[(yrs - int(vehicle["year"])).abs() <= span]
+            if len(sub) >= logic.min_cohort:
+                pool, year_label = sub, yl
+                break
+    mile_label = "any mi"
+    if mile_limited:
+        miles = pd.to_numeric(pool["mileage"], errors="coerce")
+        mile_label = MILE_SPANS[-1][1]
+        for span, ml in MILE_SPANS:
+            sub = pool[(miles - int(vehicle["mileage"])).abs() <= span]
+            if len(sub) >= logic.min_cohort:
+                pool, mile_label = sub, ml
+                break
+    t = store_table(pool, logic, vehicle)
+    if t.empty:
+        return None
+    thin = not bool(t["ranked"].any())
+    match = {lab: vehicle[f] for f, lab in REQUIRED if f in fields}
+    match["year"] = year_label
+    match["mileage"] = mile_label
+    return {"level": f"{label} · {year_label} · {mile_label}", "exact": label == "Exact", "thin": thin, "match": match,
+            "n": len(pool), "table": t, "best": t.iloc[0].to_dict(), "deals": pool,
+            "pool_detail": sim_detail(pool, vehicle), "relaxed": [lab for f, lab in REQUIRED if known(f) and f not in fields],
+            "stores_in_pool": int(pool["dealer_code"].nunique())}
 
 
 # ---------------------------------------------------------------- page data

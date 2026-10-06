@@ -50,11 +50,11 @@ Priority: <b>{{ logic.chain }}</b>. Stores within the tie band on a criterion ar
         <div class="flex flex-wrap gap-x-8 gap-y-2">
           {% if d.years %}<div><div class="uppercase text-[10px] text-slate-500 mb-1">Year ({{ d.weights.year }}% of score)</div>
             same year <b>{{ d.years.same }}</b> · ±1 <b>{{ d.years.pm1 }}</b> · ±2 <b>{{ d.years.pm2 }}</b>{% if d.years.more %} · further <b>{{ d.years.more }}</b>{% endif %}</div>{% endif %}
-          {% if d.options %}<div class="max-w-2xl"><div class="uppercase text-[10px] text-slate-500 mb-1">Installed options ({{ d.weights.options }}% of score) — units of {{ d.n }} carrying each; <span class="text-fj-dark font-semibold">packages</span> weigh 2×</div>
-            {% for o in d.options %}<span class="inline-block mr-3 mb-1 {{ 'text-fj-dark font-semibold' if o.type=='P' }}" title="{{ o.type }} {{ o.code }}">{{ o.name }}: <b>{{ o.matched }}/{{ d.n }}</b></span>{% endfor %}</div>
+          {% if d.options %}<div class="max-w-2xl"><div class="uppercase text-[10px] text-slate-500 mb-1">Installed options ({{ d.weights.options }}% of score) — how many of this store's {{ d.n }} units also have each; <span class="text-fj-dark font-semibold">packages</span> weigh 2×</div>
+            {% for o in d.options %}<span class="inline-block mr-3 mb-1 {{ 'text-fj-dark font-semibold' if o.type=='P' }}" title="{{ o.type }} {{ o.code }}">{{ o.name }} <b>{{ o.matched }} of {{ d.n }}</b></span>{% endfor %}</div>
           {% else %}<div><div class="uppercase text-[10px] text-slate-500 mb-1">Installed options</div>none decoded on this car — score is year and color only</div>{% endif %}
           <div><div class="uppercase text-[10px] text-slate-500 mb-1">Color</div>
-            {% if d.ext is not none %}exterior {{ d.ext_color }}: <b>{{ d.ext }}/{{ d.n }}</b> ({{ d.weights.ext }}%){% endif %}{% if d.int is not none %} · interior {{ d.int_color }}: <b>{{ d.int }}/{{ d.n }}</b> ({{ d.weights.int }}%){% endif %}</div>
+            {% if d.ext is not none %}exterior {{ d.ext_color }} <b>{{ d.ext }} of {{ d.n }}</b> ({{ d.weights.ext }}%){% endif %}{% if d.int is not none %} · interior {{ d.int_color }} <b>{{ d.int }} of {{ d.n }}</b> ({{ d.weights.int }}%){% endif %}</div>
         </div>
         <div class="text-slate-500 mt-1">Each unit scores 0–1 from the parts above; Similar is the sum, so {{ d.n }} identical cars would score {{ d.n }}/{{ d.n }}.</div>
       </td>

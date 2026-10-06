@@ -297,7 +297,7 @@ def place(vehicles: list, logic: Logic) -> list:
             history = df[df["vin"] == v["vin"]].sort_values("sold", ascending=False).to_dict(orient="records") if not df.empty else []
             results.append({**v, "spec": spec, "veh": veh, "rec": rec, "history": history,
                             "table": rec["table"].to_dict(orient="records") if rec else [],
-                            "error": None if rec else "not enough retail history for this kind of car at any level"})
+                            "error": None if rec else ("no comparable sales within 10,000 miles of this car" if v.get("mileage") is not None else "no comparable sales for this car")})
     return results
 
 
@@ -437,10 +437,10 @@ def rules_for(logic: Logic) -> list:
         ("Placement", [
             {"title": "Seven fields must match exactly", "body": "The comparison pool is every sold unit that matches the incoming car exactly on <b>make, model, trim/version, manufacturer code, body, engine and fuel type</b>. Trim/version is MarketCheck's version string (e.g. CLS 450 4MATIC); the manufacturer code is the factory sales code (e.g. CLS450C4)."},
             {"title": "Same year first, then adjacent", "body": "Within the pool the same model year is used when it has enough sales; otherwise ±1 year, then ±2. Year closeness also feeds the Similar score (same year 1.0, ±1 0.7, ±2 0.4)."},
-            {"title": "Mileage within 5k", "body": "Units within 5,000 miles either way of the incoming car are preferred; the band widens to 10k and then 20k only when it has too few sales. Enter mileage with each VIN; a VIN decode does not carry it."},
+            {"title": "Mileage within 5k, 10k max", "body": "Only sold units within <b>10,000 miles</b> either way of the incoming car can ever be comparable. Within that, units inside 5,000 miles are preferred and the band widens to 10,000 only when the tighter band has too few sales. If nothing is within 10,000 miles the result says so rather than matching something else. Enter mileage with each VIN; a VIN decode does not carry it."},
             {"title": "Options: match as many as possible", "body": "Every installed item MarketCheck lists is used — P (factory packages) and O (standalone options). A unit scores by the share of the car's options it also carries, packages weighing 2× standalone options. Nothing is required; more matches rank higher."},
             {"title": "Colors are a bonus", "body": "Matching exterior color adds a smaller bonus, matching interior color a smaller one still. They never exclude a unit."},
-            {"title": "Fallback when the pool is thin", "body": f"If fewer than the cohort minimum match exactly, the pool relaxes to same version → same trim → same model → same make and body → same make, and the result is labelled accordingly.<ol class='list-decimal ml-5 mt-1'>{levels}</ol>"},
+            {"title": "Fallback when the pool is thin", "body": f"If fewer than the cohort minimum match exactly (inside the mileage limit), the pool relaxes to same version → same trim → same model → same make and body → same make until enough match, and the result is labelled in amber. If no level reaches the minimum, the most specific pool that has any units is used and flagged thin.<ol class='list-decimal ml-5 mt-1'>{levels}</ol>"},
             {"title": "Minimum deals per level", "body": f"A level is only used when it has at least <b>{logic.min_cohort}</b> deals and at least one store that qualifies to be ranked. Otherwise the next, broader level is tried. The level used is shown with each result."},
             {"title": "150 VINs per run", "body": f"A placement run accepts up to <b>{PLACEMENT_MAX_VINS}</b> VINs (duplicates removed first). Longer lists are cut to the first {PLACEMENT_MAX_VINS} with a notice; split them into batches. This also caps how many MarketCheck calls one run can trigger."},
             {"title": "Sold by us before", "body": "If an incoming VIN has been retailed by the group inside the window, that history is shown with the recommendation."},
