@@ -11,9 +11,10 @@ every store that has sold that kind of car:
   annual      total_hat * 365 / days_hat  — gross one inventory slot earns per year
   similar     how many of the store's units look like the vehicle being placed (attribute overlap)
 
-Which of these decides #1 is the user's choice (the Logic tab). The default is Nick's rule: the store
-that has sold the MOST of that car is #1, and another store only takes #1 when its adj total gross
-per unit is dramatically higher (≥ over_pct AND ≥ over_abs dollars more, with ≥ min_best sales).
+Which of these decides #1 is the user's choice (the Logic tab). The site default (Nick, 2026-10-05) is
+"Most total gross dollars" — sum of total gross across the store's sales of that car (average × units) —
+with "Most units sold" as the tie-breaker. When "Most units sold" is put first, Nick's gross override
+applies: another store takes #1 only when its adj total gross per unit is ≥ over_abs more (with ≥ min_best sales).
 
 Placement matching (Nick, 2026-10-05): the comparison pool is every sold unit that matches the incoming car
 EXACTLY on make, model, trim/version, manufacturer code, body, engine and fuel type. Within the pool the same
@@ -134,7 +135,7 @@ CRITERIA = {
 }
 
 
-DEFAULT_ORDER = ["volume", "sum_total", "total", "front", "sum_front", "back", "slot", "days", "similar"]
+DEFAULT_ORDER = ["sum_total", "volume", "total", "front", "sum_front", "back", "slot", "days", "similar"]
 
 
 @dataclass
@@ -176,6 +177,8 @@ class Logic:
         for c in order:
             if c in CRITERIA and c not in seen:
                 seen.append(c)
+        if "sum_total" not in seen:          # saved before the gross-dollar criteria existed: take the new site default
+            seen = []
         base.order = seen + [c for c in DEFAULT_ORDER if c not in seen]
         base.min_store = max(1, int(base.min_store))
         base.min_best = max(1, int(base.min_best))
