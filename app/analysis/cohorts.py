@@ -405,9 +405,48 @@ def store_table(sub: pd.DataFrame, logic: Logic = DEFAULT, vehicle: Optional[dic
         r["rank"] = i
     for r in thin:
         r["rank"] = None
+    _explain(ranked, thin, logic, int(len(sub)))
     out = pd.DataFrame(ranked + thin)
     out["rank"] = pd.Series([r["rank"] for r in ranked + thin], dtype="object")
     return out
+
+
+def _fmt_money(v) -> str:
+    if v is None:
+        return "–"
+    return f"-${abs(v):,.0f}" if v < 0 else f"${v:,.0f}"
+
+
+def _explain(ranked: list, thin: list, logic: Logic, pool_n: int):
+    """Attach a one-line 'why' to every store row for the active criterion."""
+    crit = logic.rank_by
+    if crit == "similar" and not any(r.get("similar") is not None for r in ranked):
+        crit = "volume"
+    for r in thin:
+        r["why"] = f"Not ranked: only {r['n']} matching sale{'s' if r['n'] != 1 else ''} here (needs {logic.min_store})."
+    if not ranked:
+        return
+    if crit == "volume":
+        by_vol = sorted(ranked, key=lambda r: (-r["n"], -(r["total_hat"] or 0)))
+        leader = by_vol[0]
+        top = ranked[0]
+        for r in ranked:
+            if r is top and r is not leader:
+                r["why"] = (f"#1 by gross override: adj total {_fmt_money(r['total_hat'])} beats the volume leader {leader['store']} "
+                            f"({_fmt_money(leader['total_hat'])}) by ≥{_fmt_money(logic.over_abs)} per car, with {r['n']} sales (needs {logic.min_best}).")
+            elif r is leader and r is not top:
+                r["why"] = f"#{r['rank']}: most units sold ({r['n']} of {pool_n}) but out-grossed by {top['store']} by {_fmt_money((top['total_hat'] or 0) - (r['total_hat'] or 0))} per car."
+            elif r is top:
+                r["why"] = f"#1: most units sold ({r['n']} of {pool_n} comparable). No store beats its adj total gross by ≥{_fmt_money(logic.over_abs)} per car with {logic.min_best}+ sales."
+            else:
+                r["why"] = f"#{r['rank']} by units sold ({r['n']} of {pool_n})."
+        return
+    label, _, col, asc = CRITERIA[crit]
+    fmt = (lambda v: f"{v:.1f} of {{n}}") if crit == "similar" else (lambda v: f"{v:,.0f} days") if crit == "days" else _fmt_money
+    for r in ranked:
+        v = r.get(col)
+        shown = fmt(v).replace("{n}", str(r["n"])) if v is not None else "–"
+        r["why"] = f"#{r['rank']} by {label.lower()}: {shown}" + (f" (tie-broken by the next criteria in your list)" if False else ".")
 
 
 def gross_overrides(challenger: dict, incumbent: dict, logic: Logic) -> bool:
