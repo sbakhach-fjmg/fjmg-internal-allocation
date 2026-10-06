@@ -41,14 +41,14 @@ MILE_SPANS = [(5000, "≤5k mi"), (10000, "≤10k mi")]
 MILE_HARD_LIMIT = 10000     # units farther than this from the car's mileage are never comparable
 # Fallbacks when the exact pool is too small: (label, fields that must still match)
 FALLBACKS = [("Same version (ignoring manufacturer code, engine, fuel)", ["make", "model", "version"]),
-             ("Same trim", ["make", "model", "trim"]), ("Same model", ["make", "model"]), ("Same make and body", ["make", "body"]), ("Same make", ["make"])]
+             ("Same trim", ["make", "model", "trim"]), ("Same model", ["make", "model"])]   # never broader than the model
 MATCH_STEPS = [
     "Exact match on make, model, trim/version, manufacturer code, body, engine and fuel type",
     "Same model year; widen to ±1 then ±2 years only if the same year has too few sales",
     "Mileage within 5,000 miles either way, widening to 10,000 only if the band has too few sales; beyond 10,000 miles a unit is never comparable",
     "Score each unit on installed options shared with the car (packages weigh 2×, standalone options 1×)",
     "Bonus for matching exterior color, smaller bonus for matching interior color",
-    "If the exact pool is too small: same version → same trim → same model → same make and body → same make (flagged)",
+    "If the exact pool is too small: same version → same trim → same model (flagged); never broader than the model — a thin pool is used instead",
 ]
 # kept for pages that still list it
 LEVELS = [(label, [], False) for label in MATCH_STEPS]
