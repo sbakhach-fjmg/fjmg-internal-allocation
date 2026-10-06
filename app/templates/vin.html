@@ -31,7 +31,7 @@
 
 {% if r.rec %}
 <h2 class="text-lg font-semibold mb-1">Where to place it {{ info(logic_text(logic)) }}</h2>
-<p class="text-sm text-slate-500 mb-2">Matched on <em class="{{ '' if r.rec.exact else 'text-amber-700' }}">{{ r.rec.level }}</em>{% if r.rec.thin %} <span class="text-amber-700">· thin data: no store has {{ logic.min_store }}+ matching sales</span>{% endif %}: {% for k, v in r.rec.match.items() %}<span class="mr-2">{{ k.replace('_',' ') }} = <b>{{ v|t }}</b></span>{% endfor %} · {{ r.rec.n }} deals</p>
+<p class="text-sm text-slate-500 mb-2">Matched on <em class="{{ '' if r.rec.exact else 'text-amber-700' }}">{{ r.rec.level }}</em>{% if r.rec.thin %} <span class="text-amber-700">· thin data: no store has {{ logic.min_store }}+ matching sales</span>{% endif %}: {% for k, v in r.rec.match.items() %}<span class="mr-2">{{ k.replace('_',' ') }} = <b>{{ v|t if k=='Make' else v }}</b></span>{% endfor %} · {{ r.rec.n }} deals</p>
 <div class="rounded border border-slate-200 bg-white overflow-x-auto mb-2">{{ store_rank_table(r.table, logic, show_similar=True, tid=vin) }}</div>
 {% elif not s.error %}
 <div class="rounded border border-fj-mid bg-fj-light text-fj-dark px-4 py-2 text-sm">{{ r.error }}</div>
