@@ -532,7 +532,9 @@ def rank_stores(df: pd.DataFrame, vehicle: dict, logic: Logic = DEFAULT) -> Opti
         match["year"] = year_label
         match["mileage"] = mile_label
         return {"level": f"{label} · {year_label} · {mile_label}", "exact": label == "Exact match", "thin": thin, "match": match,
-                "n": len(pool), "table": t, "best": t.iloc[0].to_dict(), "deals": pool}
+                "n": len(pool), "table": t, "best": t.iloc[0].to_dict(), "deals": pool,
+                "pool_detail": sim_detail(pool, vehicle), "relaxed": [lab for f, lab in REQUIRED if known(f) and f not in fields],
+                "stores_in_pool": int(pool["dealer_code"].nunique())}
     return None
 
 

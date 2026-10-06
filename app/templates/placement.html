@@ -70,7 +70,27 @@ dz.addEventListener('drop', ev => { const inp = document.getElementById('fileInp
   <summary class="cursor-pointer px-4 py-2 text-sm"><span class="font-medium">{{ r.vin }}</span> · {{ r.veh.year }} {{ r.veh.make|t }} {{ r.veh.model }} {{ r.veh.trim }} · matched on <em>{{ r.rec.level }}</em> ({{ r.rec.n }} deals)
     {% if r.spec.packages_list %} · <span class="text-slate-500">{{ r.spec.packages_list|join(', ') }}</span>{% endif %}
     {% if r.history %} · <span class="text-fj-dark">sold by us before: {{ r.history[0].dealer_code }} {{ r.history[0].sold_date }} {{ gross(r.history[0].total_gross) }}</span>{% endif %}</summary>
-  <div class="px-4 pb-4 overflow-x-auto">{{ store_rank_table(r.table, logic, show_similar=True, tid=r.vin) }}</div>
+  <div class="px-4 pb-2 overflow-x-auto">{{ store_rank_table(r.table, logic, show_similar=True, tid=r.vin) }}</div>
+  {% set d = r.rec.pool_detail %}
+  <details class="mx-4 mb-4 rounded border border-slate-200 bg-slate-50 text-sm">
+    <summary class="cursor-pointer select-none px-3 py-2 font-medium flex items-center gap-2"><span class="text-fj text-xs">▶</span>What matched <span class="font-normal text-slate-500">— {{ r.rec.n }} sold units at {{ r.rec.stores_in_pool }} store{{ 's' if r.rec.stores_in_pool != 1 }}{% if not r.rec.exact %} · <span class="text-amber-700">{{ r.rec.level.split(' · ')[0] }}</span>{% endif %}</span></summary>
+    <div class="px-3 pb-3 space-y-3 border-t border-slate-200 pt-3">
+      <div>
+        <div class="text-[10px] uppercase text-slate-500 mb-1">Exact on {% if r.rec.relaxed %}<span class="normal-case text-amber-700">(relaxed: {{ r.rec.relaxed|join(', ') }})</span>{% endif %}</div>
+        <div class="flex flex-wrap gap-x-5 gap-y-1">{% for label, val in d.required %}<span><span class="text-slate-500">{{ label }}</span> <b>{{ val|t if label=='Make' else val }}</b></span>{% endfor %}</div>
+      </div>
+      <div class="flex flex-wrap gap-x-8 gap-y-2">
+        <div><div class="text-[10px] uppercase text-slate-500 mb-1">Year</div>{{ r.veh.year }} → <b>{{ r.rec.match.year }}</b>{% if d.years %} <span class="text-slate-500">(same {{ d.years.same }} · ±1 {{ d.years.pm1 }} · ±2 {{ d.years.pm2 }}{% if d.years.more %} · further {{ d.years.more }}{% endif %})</span>{% endif %}</div>
+        <div><div class="text-[10px] uppercase text-slate-500 mb-1">Mileage</div>{{ r.mileage|num }} → <b>{{ r.rec.match.mileage }}</b></div>
+        <div><div class="text-[10px] uppercase text-slate-500 mb-1">Color</div>{% if d.ext is not none %}exterior {{ d.ext_color }}: <b>{{ d.ext }}/{{ d.n }}</b>{% endif %}{% if d.int is not none %} · interior {{ d.int_color }}: <b>{{ d.int }}/{{ d.n }}</b>{% endif %}{% if d.ext is none and d.int is none %}<span class="text-slate-400">unknown</span>{% endif %}</div>
+      </div>
+      <div>
+        <div class="text-[10px] uppercase text-slate-500 mb-1">Installed options on this car — pooled units carrying each (<span class="text-fj-dark font-semibold">P packages</span> · O options)</div>
+        {% if d.options %}<div class="flex flex-wrap gap-x-4 gap-y-1">{% for o in d.options %}<span class="{{ 'text-fj-dark font-semibold' if o.type=='P' }}" title="{{ o.type }} {{ o.code }}{% if o.msrp %} · ${{ o.msrp|int }}{% endif %}">{{ o.name }} <b>{{ o.matched }}/{{ d.n }}</b></span>{% endfor %}</div>
+        {% else %}<span class="text-slate-400">none decoded on this car</span>{% endif %}
+      </div>
+    </div>
+  </details>
 </details>
 {% endfor %}
 {% endif %}
