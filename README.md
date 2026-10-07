@@ -65,6 +65,27 @@ CLI: `python -m app.cli load <file>` · `python -m app.cli decode [limit]` · `p
 
 Never run it on the internet with `APP_PASSWORD` empty.
 
+## Run on the internal VM
+
+Runs on `switch-dagster` with Docker Compose: the app plus Caddy in front for HTTPS at
+`https://switch-dagster`. The app's own port is not published.
+
+1. **Clone** with a read-only deploy key, then `cd` into the repo.
+2. **`.env`**: `cp .env.example .env`, set `MARKETCHECK_API_KEY`, `APP_PASSWORD`, `DECODE_PASSWORD` and
+   `APP_SECRET` (`openssl rand -hex 32`), then `chmod 600 .env`. HTTPS is required: the login cookie is
+   `Secure` whenever `APP_SECRET` is set, so plain `http://` sign-in loops back to `/login`.
+3. **Start**: `docker compose up -d --build`. Check with `docker compose ps` (app healthy) and
+   `curl -k --resolve switch-dagster:443:127.0.0.1 https://switch-dagster/healthz`.
+4. **Trust the certificate** (Caddy `tls internal`, no IT needed). On the VM:
+   `docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt`.
+   On each user's Windows machine (no admin): `certutil -user -addstore Root caddy-root.crt`.
+   Edge and Chrome use this store; Firefox needs its own import.
+5. **Update**: `git pull && docker compose up -d --build`.
+
+Keep `./data` (SQLite db, uploads, MarketCheck cache) and the `caddy_data` volume (Caddy's certificate
+authority). Never run `docker compose down -v`: it deletes `caddy_data`, and every user would have to trust
+a new certificate.
+
 ## Layout
 
 ```

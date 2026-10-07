@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment: { DATA_DIR: /data, PORT: "8000" }
+    volumes: ["./data:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [app]
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
