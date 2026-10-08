@@ -86,6 +86,12 @@ Keep `./data` (SQLite db, uploads, MarketCheck cache) and the `caddy_data` volum
 authority). Never run `docker compose down -v`: it deletes `caddy_data`, and every user would have to trust
 a new certificate.
 
+## Transfer batch (replacing this app)
+
+`batch/` runs the same ranking code weekly from MSSQL and publishes to Tableau Server; the web app is being
+retired ([ADR-0001](docs/adr/0001-retire-web-app-for-batch-transfer-pipeline.md)). See
+[docs/transfer-pipeline-plan.md](docs/transfer-pipeline-plan.md) and [CONTEXT.md](CONTEXT.md).
+
 ## Layout
 
 ```

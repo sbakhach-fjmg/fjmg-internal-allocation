@@ -1,0 +1,36 @@
+# Ranking rule for transfer placements. Owned by analytics: changes go through Shafeek.
+# Keys load straight into app/analysis/cohorts.py `Logic` via Logic.from_dict, so names must match exactly.
+# Values below are the app's defaults as of commit a99818d.
+
+# Criteria in priority order. The first decides; stores within its tie band count as tied and the next criterion
+# breaks the tie, and so on.
+#   sum_total  most total gross dollars (avg x units)     volume     most units sold
+#   total      best adj total gross per unit              front      best adj front gross per unit
+#   sum_front  most front-end gross dollars               back       best adj back (F&I) gross per unit
+#   slot       adj gross per inventory slot per year      days       fastest adj turn
+#   similar    most look-alike units sold (options 55%, year 25%, ext color 12%, int color 8%)
+# GOTCHA: Logic.from_dict ignores an order that doesn't contain sum_total and falls back to the default order.
+order: [sum_total, volume, total, front, sum_front, back, slot, days, similar]
+
+# Shrinkage: a store with n deals is weighted n/(n+k) against the comparable pool's average.
+k: 8
+
+# Deal counts
+min_cohort: 5   # deals a comparable pool needs before the matching stops widening
+min_store: 3    # deals a store needs in the pool to be ranked (fewer = listed as "not ranked")
+min_best: 5     # deals a store needs before the gross override can apply
+
+# Gross override ("Nick's rule"). Only used when `volume` is first in `order`, so INACTIVE with the order above.
+# A store takes #1 from the volume leader when its adj total gross per unit is higher by over_abs dollars
+# (and by over_pct as a share, if over_pct > 0).
+over_abs: 2000
+over_pct: 0
+
+# Tie bands ("normal" preset): how close two stores must be on a criterion to count as tied.
+tie_units_pct: 0.15   # volume: units within 15%
+tie_gross: 500        # total / front / back per unit: within $500
+tie_days: 5           # days: within 5 days
+tie_rel: 0.15         # sum_total / sum_front / slot / similar: within 15%
+
+# Sales window: deals sold in the N months before the newest sold date (batch/place.py sales_frame applies it).
+analysis_months: 6
