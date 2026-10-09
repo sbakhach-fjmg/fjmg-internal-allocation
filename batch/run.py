@@ -43,7 +43,7 @@ def run(args) -> int:
     from batch.rule import load_rule
     rule = load_rule(args.rule)
     from batch import decode as dc
-    from batch.place import place, sales_frame
+    from batch.place import one_table, place, sales_frame
 
     run_date = date.today().isoformat()
     out = Path(args.runs_dir) / run_date
@@ -79,27 +79,23 @@ def run(args) -> int:
             log.warning("  %s: %.1f%% decoded", store, share * 100)
 
     placements, comparables = place(frame, specs, candidates, rule.logic)
-    placements.insert(0, "run_date", run_date)
-    comparables.insert(0, "run_date", run_date)
-    placements["decode_coverage"] = cov
-    placements["coverage_warning"] = (f"Decode coverage {cov:.0%}: rankings may be loose" if cov < dc.COVERAGE_WARN else None)
     log.info("placed %d candidates: %s", candidates["vin"].nunique(),
              placements.drop_duplicates("vin")["status"].value_counts().to_dict())
-
-    placements = _tableau_types(placements)
-    comparables = _tableau_types(comparables)
-    placements.to_parquet(out / "transfer_placements.parquet", index=False)
-    comparables.to_parquet(out / "transfer_comparable_deals.parquet", index=False)
+    table = one_table(placements, comparables)
+    table.insert(0, "run_date", run_date)
+    table["decode_coverage"] = cov
+    table["coverage_warning"] = (f"Decode coverage {cov:.0%}: rankings may be loose" if cov < dc.COVERAGE_WARN else None)
+    table = _tableau_types(table)
+    table.to_parquet(out / "transfer_placements.parquet", index=False)
 
     if args.skip_publish:
         return 0
     from batch.publish import publish, write_hyper
     try:
-        paths = [out / "transfer_placements.hyper", out / "transfer_comparable_deals.hyper"]
-        write_hyper(placements, paths[0])
-        write_hyper(comparables, paths[1])
-        publish(paths)
-        log.info("published %s", ", ".join(p.stem for p in paths))
+        path = out / "transfer_placements.hyper"
+        write_hyper(table, path)
+        publish([path])
+        log.info("published %s", path.stem)
     except Exception:
         log.exception("publishing to Tableau Server failed; outputs are in %s", out)
         return 1
@@ -124,7 +120,7 @@ def _tableau_types(df):
             df[c] = df[c].astype("Float64")
         else:
             df[c] = df[c].astype("string")
-    for c in ("sold_date", "receive_date"):
+    for c in ("deal_sold_date", "receive_date"):
         if c in df:
             df[c] = pd.to_datetime(df[c])
     return df

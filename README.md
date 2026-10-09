@@ -1,12 +1,113 @@
-# FJ Used Sales Analyzer
+# FJ used vehicle transfer placement
 
-Internal web app for Fletcher Jones: upload the Advent group sales export, decode every used VIN
-through MarketCheck, and see which used cars make the most gross and turn fastest at which store.
-Each week, paste the list of incoming vehicles and get a ranked store recommendation per VIN.
+Weekly batch that tells Fletcher Jones which store a used car aging on one lot should go to. For every used
+car in stock it finds comparable sold cars (exact make/model/version/engine match first, widening only when
+too few), scores each store on how those cars sold there, ranks the stores with one fixed ranking rule, and
+publishes the result to Tableau Server. The author filters on days in stock, clicks a car, and sees its
+ranked stores, the reason for each rank, and the deals behind it.
 
-Separate from every other FJ tool: its own code, database, MarketCheck cache and deployment.
+It started as a web app (still in `app/`, being retired: [ADR-0001](docs/adr/0001-retire-web-app-for-batch-transfer-pipeline.md)).
+The batch reuses the app's ranking code unchanged. Terms: [CONTEXT.md](CONTEXT.md). Full design and the open
+checks: [docs/transfer-pipeline-plan.md](docs/transfer-pipeline-plan.md).
 
-## What it does
+## How a run works
+
+`python -m batch.run` (Alteryx Run Command, weekly):
+
+1. **Read** sales (last 6 months of used Retail/Lease deals), used cars in stock, and stored VIN decodes from
+   MSSQL: `batch/sql/sales.sql`, `batch/sql/transfer_candidates.sql`, table `dbo.vin_specs`.
+2. **Decode** VINs (sales and stock) not yet in `vin_specs` through MarketCheck and store them. Stops cleanly
+   at the monthly quota; a VIN that fails 3 times is given up.
+3. **Snapshot** the inputs to `runs/<date>/inputs/` so any week can be replayed.
+4. **Rank** stores for every car with `app/analysis/cohorts.py` and the rule in `batch/ranking_rule.yaml`.
+5. **Write** one table to `runs/<date>/transfer_placements.parquet`.
+6. **Publish** it as the `transfer_placements` data source on Tableau Server (overwritten each week).
+
+Exit code `0` ok, `1` publishing failed (local outputs still written), `2` anything else. Details in
+`runs/<date>/run.log`, including decode coverage: below 98% of in-window sales decoded, the output carries a
+`coverage_warning`.
+
+## The Tableau table
+
+One data source, one row per **car × comparable deal**. Car and store columns repeat on each deal row; cars
+with status `no decode` or `no comparables` keep one row with empty store and deal columns.
+
+- Car: `vin`, `stock_no`, `current_store`, `days_in_stock`, `mileage`, `year`/`make`/`model`, decoded `trim`/`version`/...
+- Result: `status`, `action` ("Keep at current store" / "Transfer to X" / "No ranked store"), `top_store`,
+  `current_store_rank`, `match_level`, `thin`, `pool_n`
+- Store: `store`, `rank` (empty = fewer than 3 deals, not ranked), `is_current_store`, `n`, `sum_total`,
+  `total_hat`, `days_hat`, `why`, ...
+- Deal: `deal_vin`, `deal_sold_date`, `deal_total_gross`, `deal_days_to_sell`, ...
+
+**Store measures repeat once per deal.** Filter on `store_row = True` (one row per car × store), or use
+`MIN`/`ATTR`, before summing or averaging `n`, `sum_total`, `total_hat` and the other store columns.
+Column list: [plan, "Output: one table"](docs/transfer-pipeline-plan.md#output-one-table).
+
+## Changing the ranking rule
+
+Edit [batch/ranking_rule.yaml](batch/ranking_rule.yaml) (criteria order, shrinkage `k`, minimum deal counts,
+tie bands, sales window). Every value is commented. Typos and unknown criteria stop the run instead of being
+ignored. Changes go through analytics; run the tests after editing:
+
+```
+.venv\Scripts\python -m pytest batch
+```
+
+## Setup (Alteryx machine)
+
+```
+python -m venv .venv
+.venv\Scripts\pip install -r batch\requirements.txt
+copy .env.example .env
+```
+
+Fill in `.env`: `MSSQL_CONNECTION` (Windows integrated auth, `Trusted_Connection=yes`), `MARKETCHECK_API_KEY`,
+`TABLEAU_SERVER_URL`, `TABLEAU_SITE`, `TABLEAU_PROJECT`, `TABLEAU_PAT_NAME`, `TABLEAU_PAT_SECRET`.
+
+One-time: run `batch/sql/vin_specs.sql` in MSSQL, then load the existing decodes:
+
+```
+.venv\Scripts\python -m batch.run seed-decodes path\to\decode-cache-2026-10-02.jsonl.gz
+```
+
+Before relying on the output, work through the SQL checks in the plan (store codes match between sales and
+inventory, make spelling matches the decodes, `RS Date` / `Age In Invt` meanings).
+
+## Running it
+
+From the repo folder (Alteryx Run Command: working directory = repo):
+
+```
+.venv\Scripts\python.exe -m batch.run
+```
+
+| Flag | Use |
+|---|---|
+| `--skip-decode` | no MarketCheck calls this run |
+| `--skip-publish` | write `runs/<date>/` only, don't touch Tableau |
+| `--decode-cap N` | decode at most N VINs (default 12,000) |
+| `--local DIR` | read `DIR/sales.parquet`, `transfer_candidates.parquet`, `vin_specs.parquet` instead of MSSQL; `--local runs/<date>/inputs` replays that week |
+
+## Batch layout
+
+```
+batch/run.py               entry point: the six steps, plus seed-decodes
+batch/rule.py              loads ranking_rule.yaml strictly
+batch/ranking_rule.yaml    the one ranking rule
+batch/place.py             app ranking code per car, builds the one output table
+batch/decode.py            seed / top up vin_specs, decode coverage
+batch/sources.py           MSSQL or a folder of parquet files
+batch/publish.py           .hyper (pantab) and Tableau Server publish (tableauserverclient)
+batch/sql/                 sales, transfer candidates, vin_specs DDL
+batch/tests/               ranking-rule tests
+runs/                      weekly snapshots and logs (git-ignored)
+```
+
+## Legacy web app (being retired)
+
+Kept until the batch output is confirmed to match it, then removed in one commit.
+
+### What the web app does
 
 1. **Upload** `inventory_sales_report.xlsx` (Advent, group-wide, `sales` sheet). Keeps used
    **Retail + Lease** deals from active stores only. Wholesale deals, new cars and former stores
@@ -39,7 +140,7 @@ model, group by model / trim / year / miles / spec) · model detail (year / trim
 color / factory package breakdowns) · **Stores** (store summary, where each store wins, units by month)
 · **Logic** (priority order + settings) · **Rules** (every rule and formula, with dropdown descriptions) · **Data** (uploads, decode status/quota) · `/vin/<VIN>` lookup · `/export.xlsx` full analysis workbook.
 
-## Run locally
+### Run locally
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -49,7 +150,7 @@ cp .env.example .env     # set MARKETCHECK_API_KEY (and APP_PASSWORD/APP_SECRET 
 
 CLI: `python -m app.cli load <file>` · `python -m app.cli decode [limit]` · `python -m app.cli status`.
 
-## Deploy to Railway
+### Deploy to Railway
 
 1. Push this folder to a Git repo (`.env` and `data/` are ignored) and create a Railway project from it.
    The `Dockerfile` + `railway.json` are picked up automatically (health check `/healthz`).
@@ -65,7 +166,7 @@ CLI: `python -m app.cli load <file>` · `python -m app.cli decode [limit]` · `p
 
 Never run it on the internet with `APP_PASSWORD` empty.
 
-## Run on the internal VM
+### Run on the internal VM (Docker Compose)
 
 Runs on `switch-dagster` with Docker Compose: the app plus Caddy in front for HTTPS at
 `https://switch-dagster`. The app's own port is not published.
@@ -86,13 +187,7 @@ Keep `./data` (SQLite db, uploads, MarketCheck cache) and the `caddy_data` volum
 authority). Never run `docker compose down -v`: it deletes `caddy_data`, and every user would have to trust
 a new certificate.
 
-## Transfer batch (replacing this app)
-
-`batch/` runs the same ranking code weekly from MSSQL and publishes to Tableau Server; the web app is being
-retired ([ADR-0001](docs/adr/0001-retire-web-app-for-batch-transfer-pipeline.md)). See
-[docs/transfer-pipeline-plan.md](docs/transfer-pipeline-plan.md) and [CONTEXT.md](CONTEXT.md).
-
-## Layout
+### Web app layout
 
 ```
 app/main.py              routes, placement recommender, Excel exports

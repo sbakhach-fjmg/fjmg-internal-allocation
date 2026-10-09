@@ -17,8 +17,8 @@ Alteryx (weekly schedule)
        2. extract    MSSQL → sales.sql, transfer_candidates.sql, vin_specs
        3. snapshot   runs\<date>\inputs\*.parquet
        4. place      app/analysis/cohorts.py + app/decode/taxonomy.py (unchanged), rule from ranking_rule.yaml
-       5. write      runs\<date>\transfer_placements.parquet, transfer_comparable_deals.parquet
-       6. publish    .hyper (pantab) → Tableau Server, overwrite (tableauserverclient)
+       5. write      runs\<date>\transfer_placements.parquet (one table)
+       6. publish    one .hyper (pantab) → Tableau Server data source `transfer_placements`, overwrite
 ```
 
 - **Credentials.** MSSQL uses Windows integrated auth through `mssql-python`, under the account that runs Alteryx (`MSSQL_CONNECTION` with `Trusted_Connection=yes`). The MarketCheck key and the Tableau personal access token go in the repo-root `.env` (see `.env.example`), readable only by that account.
@@ -36,7 +36,7 @@ batch/
   run.py                    entry point, the six stages above; also `seed-decodes`
   rule.py                   loads ranking_rule.yaml strictly (typos are errors, not ignored)
   ranking_rule.yaml         the one ranking rule (loaded with cohorts.Logic.from_dict)
-  place.py                  sales frame via the app's load_frame + rank_stores per candidate
+  place.py                  sales frame via the app's load_frame, rank_stores per candidate, one output table
   decode.py                 seed + top up vin_specs, decode coverage
   sources.py                MSSQL (production) or a folder of parquet files (--local)
   publish.py                build .hyper, publish to Tableau Server
@@ -60,7 +60,7 @@ Reuse these functions instead of rewriting them:
 | Placement loop to mirror (minus web parts) | `main.place` ([main.py:273](../app/main.py)) |
 
 Import gotchas:
-- `app/config.py` reads `.env` and creates `DATA_DIR` when imported. Set `DATA_DIR` and `ANALYSIS_MONTHS` (from the YAML) in the environment **before** importing anything from `app`.
+- `app/config.py` reads `.env` and creates `DATA_DIR` when imported. `batch/__init__.py` points `DATA_DIR` at a temp folder before anything imports `app`. `analysis_months` from the YAML is applied by `sales_frame` setting `cohorts.ANALYSIS_MONTHS`; the environment variable would be read too late.
 - `Logic.from_dict` silently ignores an `order` that doesn't contain `sum_total`.
 
 ## The decode table
@@ -78,22 +78,22 @@ Decoding the sales VINs matters as much as decoding the cars being placed. A sol
 - If coverage falls below **98%**, finish the run but flag it on the dashboard ("decode coverage 91% — rankings may be loose"). Usually that means the MarketCheck quota ran out partway through the top-up.
 - Decode failures (bad VINs, nothing returned) are retried on the next run but stop counting after 3 attempts (one extra `decode_attempts` column on the MSSQL table, which the app doesn't have), so they don't drag coverage down forever.
 
-## Output: two published data sources
+## Output: one table
 
-Publish two data sources and connect them in the workbook with a filter action on `vin`. Filter actions work across data sources by field name, which avoids depending on multi-table extracts.
+Tableau Server gets **one data source, `transfer_placements`**, so everything can be filtered and sliced in one place.
 
-**`transfer_placements`**: one row per transfer candidate × store in its comparable pool.
+**Grain: one row per transfer candidate × comparable deal.** The candidate and store columns repeat on every deal row of that store. A candidate with status `no decode` or `no comparables` keeps a single row with empty store and deal columns.
 
 | Group | Columns |
 |---|---|
-| Run | `run_date` |
-| Vehicle (inventory) | `vin`, `stock_no`, `current_store`, `days_in_stock`, `receive_date`, `mileage`, `year`, `make`, `model`, `dealer_cost` |
+| Run | `run_date`, `decode_coverage`, `coverage_warning` |
+| Vehicle (inventory) | `vin`, `stock_no`, `current_store`, `current_store_name`, `days_in_stock`, `receive_date`, `mileage`, `year`, `make`, `model`, `dealer_cost` |
 | Vehicle (decode) | `trim`, `version`, `mfr_code`, `engine`, `ext_color`, `int_color` |
-| Pool | `status` (`placed` / `no decode` / `no comparables`), `match_level`, `exact`, `thin`, `pool_n`, `stores_in_pool`, `relaxed_fields` |
-| Store | `store`, `store_name`, `rank` (null = not ranked, too few deals), `is_current_store`, `current_store_rank`, `n`, `total_hat`, `front_hat`, `back_hat`, `sum_total`, `sum_front`, `days_hat`, `days` (median), `annual`, `similar`, `why` |
+| Pool | `status` (`placed` / `no decode` / `no comparables`), `match_level`, `exact`, `thin`, `pool_n`, `stores_in_pool`, `relaxed_fields`, `top_store`, `action` ("Keep at current store" / "Transfer to X" / "No ranked store"), `current_store_rank` |
+| Store | `store`, `store_row`, `store_name`, `rank` (null = not ranked, too few deals), `is_current_store`, `n`, `total_hat`, `front_hat`, `back_hat`, `sum_total`, `sum_front`, `days_hat`, `days` (median), `annual`, `similar`, `why` |
+| Comparable deal | `deal_vin`, `deal_sold_date`, `deal_year`, `deal_version`, `deal_mileage`, `deal_front_gross`, `deal_back_gross`, `deal_total_gross`, `deal_days_to_sell`, `deal_sold_price` |
 
-**`transfer_comparable_deals`**: one row per transfer candidate × deal in its comparable pool.
-Columns: `run_date`, candidate `vin`, `deal_store`, `deal_vin`, `sold_date`, `year`, `version`, `mileage`, `front_gross`, `back_gross`, `total_gross`, `days_to_sell`, `sold_price`.
+**Summing store measures.** Columns like `n`, `sum_total` and `total_hat` repeat once per deal. `store_row` is true on exactly one row per candidate × store. Filter on `store_row = True` (or use `MIN`/`ATTR`) before summing or averaging them, or they're multiplied by the number of deals. Deal columns (`deal_*`) can be summed on any filter.
 
 The **detail screen** shows:
 - A headline, "Keep at current store" or "Transfer to X"
@@ -155,8 +155,8 @@ The fix: when the deal is decoded, use the decode's make and year; otherwise fal
 2. Create MSSQL `vin_specs` and seed it from the decode file, filling `mfr_code` and `options` from `raw`.
 3. Write `batch/run.py` stages 2–5 (no decoding or publishing yet) and pass the parity check. Then make the make/year change above in its own commit.
 4. Add stage 1 (decoding new VINs) with the MarketCheck key, and do a dry run with a small cap.
-5. Add stage 6 (publishing). Publish both data sources to a test project on Tableau Server.
-6. Build the workbook: a list filtered by days in stock, linked by a filter action to the detail screen.
+5. Add stage 6 (publishing). Publish the data source to a test project on Tableau Server.
+6. Build the workbook on the one data source: a list filtered by days in stock (one row per `vin`), and a detail screen filtered to the selected `vin`.
 7. Schedule it in Alteryx with Run Command, then hand over to the author.
 8. After they've signed off, delete the web layer in one commit: `app/main.py` routes, templates, Dockerfile, Compose, Caddyfile and `railway.json`.
 

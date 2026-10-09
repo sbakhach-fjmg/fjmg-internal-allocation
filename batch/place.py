@@ -79,3 +79,14 @@ def place(frame: pd.DataFrame, specs: pd.DataFrame, candidates: pd.DataFrame, lo
     for col in ("pool_n", "stores_in_pool", "current_store_rank", "rank", "n"):   # counts and ranks, null on status rows
         placements[col] = placements[col].astype("Int64")
     return placements, pd.DataFrame(comps, columns=COMPARABLE_COLS)
+
+
+def one_table(placements: pd.DataFrame, comparables: pd.DataFrame) -> pd.DataFrame:
+    """The single Tableau table: one row per candidate × comparable deal, with the candidate and store columns
+    repeated on each of that store's deals. Status rows (no decode / no comparables) keep one row with empty deal
+    columns. `store_row` is true on exactly one row per candidate × store: filter on it before summing store
+    measures (n, sum_total, ...), which are otherwise repeated once per deal."""
+    deals = comparables.drop(columns=["deal_store_name"]).rename(columns={c: f"deal_{c}" for c in COMPARABLE_COLS[4:]})
+    out = placements.merge(deals, how="left", left_on=["vin", "store"], right_on=["vin", "deal_store"]).drop(columns="deal_store")
+    out.insert(out.columns.get_loc("store") + 1, "store_row", ~out.duplicated(["vin", "store"]))
+    return out
