@@ -20,7 +20,8 @@ checks: [docs/transfer-pipeline-plan.md](docs/transfer-pipeline-plan.md).
    at the monthly quota; a VIN that fails 3 times is given up.
 3. **Snapshot** the inputs to `runs/<date>/inputs/` so any week can be replayed.
 4. **Rank** stores for every car with `app/analysis/cohorts.py` and the rule in `batch/ranking_rule.yaml`.
-5. **Write** one table to `runs/<date>/transfer_placements.parquet`.
+5. **Write** one table to `runs/<date>/transfer_placements.parquet`, plus a copy at a fixed path,
+   `runs/transfer_placements_latest.parquet`, overwritten each run (see *Exploring the output*).
 6. **Publish** it as the `transfer_placements` data source on Tableau Server (overwritten each week).
 
 Exit code `0` ok, `1` publishing failed (local outputs still written), `2` anything else. Details in
@@ -42,6 +43,21 @@ with status `no decode` or `no comparables` keep one row with empty store and de
 **Store measures repeat once per deal.** Filter on `store_row = True` (one row per car × store), or use
 `MIN`/`ATTR`, before summing or averaging `n`, `sum_total`, `total_hat` and the other store columns.
 Column list: [plan, "Output: one table"](docs/transfer-pipeline-plan.md#output-one-table).
+
+## Exploring the output
+
+The table published to Tableau is also saved locally as parquet, identical column for column:
+
+- `runs/transfer_placements_latest.parquet`: always the latest run. Point notebooks, Alteryx or Power BI here.
+  Move it with `--latest PATH` (e.g. a shared drive).
+- `runs/<date>/transfer_placements.parquet`: that week's copy, kept for history.
+
+```python
+import pandas as pd
+t = pd.read_parquet(r"runs\transfer_placements_latest.parquet")
+cars = t.drop_duplicates("vin")                     # one row per car: action, top_store, match_level, ...
+stores = t[t["store_row"]]                          # one row per car x store: rank, n, sum_total, why, ...
+```
 
 ## Changing the ranking rule
 
@@ -86,6 +102,7 @@ From the repo folder (Alteryx Run Command: working directory = repo):
 | `--skip-decode` | no MarketCheck calls this run |
 | `--skip-publish` | write `runs/<date>/` only, don't touch Tableau |
 | `--decode-cap N` | decode at most N VINs (default 12,000) |
+| `--latest PATH` | where to write the fixed-path parquet copy (default `runs/transfer_placements_latest.parquet`) |
 | `--local DIR` | read `DIR/sales.parquet`, `transfer_candidates.parquet`, `vin_specs.parquet` instead of MSSQL; `--local runs/<date>/inputs` replays that week |
 
 ## Batch layout
@@ -100,7 +117,7 @@ batch/sources.py           MSSQL or a folder of parquet files
 batch/publish.py           .hyper (pantab) and Tableau Server publish (tableauserverclient)
 batch/sql/                 sales, transfer candidates, vin_specs DDL
 batch/tests/               ranking-rule tests
-runs/                      weekly snapshots and logs (git-ignored)
+runs/                      weekly snapshots, logs and the latest parquet (git-ignored)
 ```
 
 ## Legacy web app (being retired)

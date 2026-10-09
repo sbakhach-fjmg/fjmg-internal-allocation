@@ -17,7 +17,7 @@ Alteryx (weekly schedule)
        2. extract    MSSQL → sales.sql, transfer_candidates.sql, vin_specs
        3. snapshot   runs\<date>\inputs\*.parquet
        4. place      app/analysis/cohorts.py + app/decode/taxonomy.py (unchanged), rule from ranking_rule.yaml
-       5. write      runs\<date>\transfer_placements.parquet (one table)
+       5. write      runs\<date>\transfer_placements.parquet + runs\transfer_placements_latest.parquet
        6. publish    one .hyper (pantab) → Tableau Server data source `transfer_placements`, overwrite
 ```
 

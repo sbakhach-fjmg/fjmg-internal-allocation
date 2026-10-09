@@ -3,6 +3,7 @@
     python -m batch.run                          MSSQL -> decode new VINs -> place -> runs/<date>/ -> Tableau Server
     python -m batch.run --local DIR              read DIR/*.parquet instead of MSSQL (new decodes saved to DIR)
     python -m batch.run --skip-decode --skip-publish
+    python -m batch.run --latest D:/shared/transfer_placements.parquet   fixed-path copy of the output table
     python -m batch.run [--local DIR] seed-decodes FILE.jsonl.gz   one-time: load an app cache export into vin_specs
 
 Exit code 1 when publishing fails (the local snapshot is still written), 2 on any other failure.
@@ -87,6 +88,9 @@ def run(args) -> int:
     table["coverage_warning"] = (f"Decode coverage {cov:.0%}: rankings may be loose" if cov < dc.COVERAGE_WARN else None)
     table = _tableau_types(table)
     table.to_parquet(out / "transfer_placements.parquet", index=False)
+    latest = args.latest or Path(args.runs_dir) / "transfer_placements_latest.parquet"
+    table.to_parquet(latest, index=False)   # same table as Tableau, at a fixed path for exploration
+    log.info("wrote %d rows to %s", len(table), latest)
 
     if args.skip_publish:
         return 0
@@ -134,6 +138,7 @@ def main(argv=None) -> int:
     s.add_argument("file", type=Path)
     p.add_argument("--rule", type=Path, default=ROOT / "batch" / "ranking_rule.yaml")
     p.add_argument("--runs-dir", type=Path, default=ROOT / "runs")
+    p.add_argument("--latest", type=Path, help="fixed-path copy of the output table (default: <runs-dir>/transfer_placements_latest.parquet)")
     p.add_argument("--decode-cap", type=int, default=12000)
     p.add_argument("--skip-decode", action="store_true")
     p.add_argument("--skip-publish", action="store_true")
