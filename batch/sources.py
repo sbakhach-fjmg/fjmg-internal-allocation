@@ -12,7 +12,7 @@ import pandas as pd
 from batch.decode import SPEC_TABLE_COLS
 
 SQL_DIR = Path(__file__).resolve().parent / "sql"
-SPECS_TABLE = "dbo.vin_specs"
+SPECS_TABLE = "dbo.src_marketcheck__vin_decodes"
 _COLS = ", ".join(f"[{c}]" for c in SPEC_TABLE_COLS)   # year / trim are T-SQL function names
 _READ_COLS = ", ".join(f"[{c}]" for c in SPEC_TABLE_COLS if c != "raw")
 
@@ -56,7 +56,7 @@ class Mssql:
 
 
 class LocalFolder:
-    """<dir>/sales.parquet, transfer_candidates.parquet, vin_specs.parquet."""
+    """<dir>/sales.parquet, transfer_candidates.parquet, src_marketcheck__vin_decodes.parquet."""
 
     def __init__(self, folder: Path):
         self.dir = Path(folder)
@@ -65,11 +65,11 @@ class LocalFolder:
         return pd.read_parquet(self.dir / f"{name}.parquet")
 
     def read_specs(self) -> pd.DataFrame:
-        p = self.dir / "vin_specs.parquet"
+        p = self.dir / "src_marketcheck__vin_decodes.parquet"
         return pd.read_parquet(p) if p.exists() else pd.DataFrame(columns=SPEC_TABLE_COLS)
 
     def save_specs(self, rows: pd.DataFrame):
         if rows.empty:
             return
         from batch.decode import merge_specs
-        merge_specs(self.read_specs(), rows).to_parquet(self.dir / "vin_specs.parquet", index=False)
+        merge_specs(self.read_specs(), rows).to_parquet(self.dir / "src_marketcheck__vin_decodes.parquet", index=False)

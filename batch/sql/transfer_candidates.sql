@@ -1,17 +1,17 @@
 -- Every used vehicle in stock. The script places all of them; Tableau filters on days_in_stock.
 -- dealer_code is the vehicle's current store and must use the same codes as FactSales.dealercode
--- (NBMBN, BHMBN, ... see app/config.py STORES). Otherwise is_current_store never matches.
+-- (NBMBN, BHMBN, ... see app/config.py STORES), otherwise is_current_store never matches. Checked 2026-10-09.
 -- One row per VIN (a car with two stock records would otherwise be placed twice).
 with c as (
 select
 	[Stock#] as stock_no,
-	[year],
+	try_convert(int, [year]) as [year],                   -- arrives as text
 	upper(make) as make,
 	upper(model) as model,
 	try_convert(date, [Received Date], 1) as receive_date,  -- style 1 = mm/dd/yy
 	datediff(day, try_convert(date, [Received Date], 1), cast(getdate() as date)) as days_in_stock,
 	Miles as mileage,                                       -- required: without it the 10,000-mile limit is skipped
-	upper(ltrim(rtrim(StoreID))) as dealer_code,            -- CONFIRM: same codes as FactSales.dealercode
+	upper(ltrim(rtrim(StoreID))) as dealer_code,            -- checked: same codes as FactSales.dealercode
 	Dealercost as dealer_cost,
 	upper(ltrim(rtrim(vin))) as vin,
 	row_number() over (partition by upper(ltrim(rtrim(vin))) order by try_convert(date, [Received Date], 1) desc) as rn

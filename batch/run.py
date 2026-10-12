@@ -4,7 +4,7 @@
     python -m batch.run --local DIR              read DIR/*.parquet instead of MSSQL (new decodes saved to DIR)
     python -m batch.run --skip-decode --skip-publish
     python -m batch.run --latest D:/shared/transfer_placements.parquet   fixed-path copy of the output table
-    python -m batch.run [--local DIR] seed-decodes FILE.jsonl.gz   one-time: load an app cache export into vin_specs
+    python -m batch.run [--local DIR] seed-decodes FILE.jsonl.gz   one-time: load an app cache export into dbo.src_marketcheck__vin_decodes
 
 Exit code 1 when publishing fails (the local snapshot is still written), 2 on any other failure.
 """
@@ -60,7 +60,8 @@ def run(args) -> int:
     log.info("read %d sales deals, %d transfer candidates, %d decodes", len(deals), len(candidates), len(specs))
 
     if not args.skip_decode:
-        todo = dc.vins_to_decode(list(deals["vin"]) + list(candidates["vin"]), specs)
+        stock_first = list(candidates.sort_values("days_in_stock", ascending=False)["vin"]) + list(deals["vin"])
+        todo = dc.vins_to_decode(stock_first, specs)   # under a cap, the oldest stock gets decoded first
         new, note = dc.decode_vins(todo, specs, args.decode_cap)
         src.save_specs(new)
         specs = dc.merge_specs(specs, new)
@@ -70,7 +71,7 @@ def run(args) -> int:
     used["raw"] = None   # bulky and unused by the ranking; the column stays so the snapshot replays with --local
     deals.to_parquet(out / "inputs" / "sales.parquet", index=False)
     candidates.to_parquet(out / "inputs" / "transfer_candidates.parquet", index=False)
-    used.to_parquet(out / "inputs" / "vin_specs.parquet", index=False)
+    used.to_parquet(out / "inputs" / "src_marketcheck__vin_decodes.parquet", index=False)
 
     frame = sales_frame(deals, specs, rule.analysis_months)
     cov, by_store = dc.coverage(frame, specs)
@@ -139,7 +140,7 @@ def main(argv=None) -> int:
     p.add_argument("--rule", type=Path, default=ROOT / "batch" / "ranking_rule.yaml")
     p.add_argument("--runs-dir", type=Path, default=ROOT / "runs")
     p.add_argument("--latest", type=Path, help="fixed-path copy of the output table (default: <runs-dir>/transfer_placements_latest.parquet)")
-    p.add_argument("--decode-cap", type=int, default=12000)
+    p.add_argument("--decode-cap", type=int, default=25)   # personal MarketCheck key: ~8 cents a VIN
     p.add_argument("--skip-decode", action="store_true")
     p.add_argument("--skip-publish", action="store_true")
     args = p.parse_args(argv)

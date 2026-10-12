@@ -40,10 +40,11 @@ def specs_from_cache_file(path: Path) -> pd.DataFrame:
 
 
 def vins_to_decode(vins, specs: pd.DataFrame) -> list:
-    """VINs never decoded, plus failed ones that still have attempts left."""
+    """VINs never decoded, plus failed ones that still have attempts left, in the order given (a --decode-cap
+    keeps the first ones)."""
     known = {r["vin"]: r for r in specs[["vin", "error", "decode_attempts"]].to_dict("records")}
     out = []
-    for v in sorted(set(vins)):
+    for v in dict.fromkeys(vins):
         r = known.get(v)
         if r is None or (r["error"] is not None and not pd.isna(r["error"]) and (r["decode_attempts"] or 0) < MAX_ATTEMPTS):
             out.append(v)

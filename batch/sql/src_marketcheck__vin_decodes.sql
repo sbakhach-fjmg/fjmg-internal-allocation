@@ -1,6 +1,6 @@
--- One-time: the decode table. Same columns as the app's vin_specs (app/db.py) plus decode_attempts.
+-- One-time: the decode table (MarketCheck NeoVIN decodes). Same columns as the app's vin_specs (app/db.py) plus decode_attempts.
 -- Seed it with:  python -m batch.run seed-decodes .claude\decode-cache-2026-10-02.jsonl.gz
-create table dbo.vin_specs (
+create table dbo.src_marketcheck__vin_decodes (
 	vin char(17) not null primary key,
 	source varchar(40), decoded_at varchar(20), error nvarchar(400),
 	[year] int, make nvarchar(60), model nvarchar(120), [trim] nvarchar(120), [version] nvarchar(200),

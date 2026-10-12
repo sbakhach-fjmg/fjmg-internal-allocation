@@ -9,7 +9,7 @@ with s as (
 		cast(dealnumber as varchar(30)) as deal_number,
 		upper(ltrim(rtrim(vin))) as vin,
 		case when [Sale Type] = 'Retail' then 'Retail' else 'Lease' end as sale_type,  -- exact casing; the app compares strings
-		cast([RS Date] as date) as sold_date,                                           -- CONFIRM: RS Date = sold date
+		cast([RS Date] as date) as sold_date,                                           -- checked 2026-10-09 against the author's data: = sold date
 		[year],
 		upper(make) as make,
 		upper(model) as model,
@@ -18,7 +18,7 @@ with s as (
 		Back_Gross as back_gross,
 		case when [Veh Front Gross] is null and Back_Gross is null then null
 		     else isnull([Veh Front Gross], 0) + isnull(Back_Gross, 0) end as total_gross,  -- plain a + b is null if either side is null
-		case when [Age In Invt] between 0 and 2000 then [Age In Invt] end as days_to_sell, -- CONFIRM: = sold date - receive date
+		case when [Age In Invt] between 0 and 2000 then [Age In Invt] end as days_to_sell, -- checked: = sold date - receive date
 		[Sales Price] as sold_price,
 		row_number() over (partition by upper(ltrim(rtrim(dealercode))), cast(dealnumber as varchar(30)), upper(ltrim(rtrim(vin)))
 		                   order by [RS Date] desc) as rn  -- same keys as the output: the batch's deals table rejects duplicates

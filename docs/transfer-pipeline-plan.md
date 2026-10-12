@@ -1,6 +1,6 @@
 # Used vehicle transfer pipeline: plan
 
-**Status:** built, awaiting SQL checks and a first run on the Alteryx machine · **Owner:** Shafeek · **Decision record:** [ADR-0001](adr/0001-retire-web-app-for-batch-transfer-pipeline.md) · **Glossary:** [CONTEXT.md](../CONTEXT.md)
+**Status:** built; SQL checked and decode table seeded on 2026-10-09; awaiting a first run and the parity check · **Owner:** Shafeek · **Decision record:** [ADR-0001](adr/0001-retire-web-app-for-batch-transfer-pipeline.md) · **Glossary:** [CONTEXT.md](../CONTEXT.md)
 
 ## What it's for
 
@@ -13,8 +13,8 @@ Instead, a weekly script ranks every used vehicle in stock against six months of
 ```
 Alteryx (weekly schedule)
   └─ Run Command: <repo>\.venv\Scripts\python.exe -m batch.run
-       1. decode     new VINs (sales + stock) → MarketCheck → MSSQL vin_specs
-       2. extract    MSSQL → sales.sql, transfer_candidates.sql, vin_specs
+       1. decode     new VINs (sales + stock) → MarketCheck → MSSQL dbo.src_marketcheck__vin_decodes
+       2. extract    MSSQL → sales.sql, transfer_candidates.sql, dbo.src_marketcheck__vin_decodes
        3. snapshot   runs\<date>\inputs\*.parquet
        4. place      app/analysis/cohorts.py + app/decode/taxonomy.py (unchanged), rule from ranking_rule.yaml
        5. write      runs\<date>\transfer_placements.parquet + runs\transfer_placements_latest.parquet
@@ -37,12 +37,12 @@ batch/
   rule.py                   loads ranking_rule.yaml strictly (typos are errors, not ignored)
   ranking_rule.yaml         the one ranking rule (loaded with cohorts.Logic.from_dict)
   place.py                  sales frame via the app's load_frame, rank_stores per candidate, one output table
-  decode.py                 seed + top up vin_specs, decode coverage
+  decode.py                 seed + top up dbo.src_marketcheck__vin_decodes, decode coverage
   sources.py                MSSQL (production) or a folder of parquet files (--local)
   publish.py                build .hyper, publish to Tableau Server
   sql/sales.sql             sold used Retail/Lease deals → `deals` columns
   sql/transfer_candidates.sql   used vehicles in stock
-  sql/vin_specs.sql         one-time DDL for the MSSQL decode table
+  sql/src_marketcheck__vin_decodes.sql   one-time DDL for the MSSQL decode table
   tests/test_rule.py        ranking-rule loading
   requirements.txt          pinned batch dependencies
 ```
@@ -65,12 +65,12 @@ Import gotchas:
 
 ## The decode table
 
-1. Create `vin_specs` in MSSQL with the app's columns ([db.py:26](../app/db.py)).
+1. Create `dbo.src_marketcheck__vin_decodes` in MSSQL with the app's columns ([db.py:26](../app/db.py)).
 2. Seed it from the author's `decode-cache-2026-10-02.jsonl.gz` (8,931 VINs, all decoded without errors).
    - That file is from an older app version and **has no `mfr_code` or `options` columns**. Fill both from `raw` using the app's own logic before loading.
    - Without `mfr_code`, nothing ever matches at the Exact level. Without `options`, the similarity score ignores options.
    - The file is git-ignored. Keep it out of the repo.
-3. Each run, decode every VIN in the sales extract **and** in stock that isn't in `vin_specs` yet. MarketCheck's quota is the limit; the app caps a run at 12,000 decodes.
+3. Each run, decode every VIN in the sales extract **and** in stock that isn't in `dbo.src_marketcheck__vin_decodes` yet. A run decodes at most `--decode-cap` VINs (default 25, because the key is currently the author's personal account at about 8 cents a VIN), oldest stock first, then sales. The rest wait for the next run.
 
 Decoding the sales VINs matters as much as decoding the cars being placed. A sold deal without a decode falls back to the sales table's make/model text: its trim is a guess, and its version, manufacturer code, engine, colors and options are unknown. It can never join an Exact pool, so the candidate (always decoded) ends up compared against looser, partly guessed history.
 
@@ -118,13 +118,20 @@ Both queries are in `batch/sql/`. Changes from your drafts:
   - Keeps used vehicles only (`[New/Used] = 'U'`).
   - Excludes the former stores.
 
-Confirm these against the data. Each one silently breaks matching if it's wrong:
+Each of these silently breaks matching if it's wrong. Results of checking them on 2026-10-09, against the author's `used_sales.db`, are in *Result*:
 
 1. **`StoreID` uses the same codes as `FactSales.dealercode`** (NBMBN, BHMBN, …). If not, `is_current_store` never matches.
 2. **`make` is spelled the same in FactSales as in the decodes** ("MERCEDES-BENZ" vs "MERCEDES BENZ"). Until the make/year change below lands, deals take their make from FactSales while candidates take it from the decode, and one spelling difference empties every pool for that brand. Check with `select distinct upper(make)` on both.
 3. **`[RS Date]` is the sold date**, and **`[Age In Invt]` on a sale is sold − received days**.
 4. **Whether FactSales has its own total-gross column.** Advent's "Total Deal Gross" was used when present. If it includes items beyond front + back, use it.
 5. **Duplicates.** Compare `count(*)` with `count(distinct dealercode + dealnumber + vin)` before relying on `row_number`.
+
+*Result:*
+1. Yes. The same 11 codes in inventory and FactSales, with no strays.
+2. Mostly. 99% of decoded sales deals spell the make like their decode. The 55 that don't ("MERCEDES" and "MERCED SPRINTER" vs "MERCEDES-BENZ", "DODGE" vs "RAM", "LANDROVER", "MASERATTI") currently fall out of their brand's pools. The make/year change below brings them back.
+3. Yes. On the 8,596 deals in both, sold date and days to sell equal the author's on every row.
+4. Front + back is right. It equals the author's total gross (Advent's "Total Deal Gross" where present) on 98.6% of deals; the rest differ in front or back gross too, so they are adjustments posted after the author's export, not a different definition.
+5. Handled by `row_number` on the normalized keys. 8,596 of the author's deals match ours on store + deal + VIN; of the 342 that don't, 339 sold before our window starts.
 
 The sales query cuts at 6 months before today. The script then keeps 6 months before the newest sold date, so in practice the two windows match.
 
@@ -151,8 +158,8 @@ The fix: when the deal is decoded, use the decode's make and year; otherwise fal
 
 ## Build order
 
-1. Run the five SQL checks above and fix the queries.
-2. Create MSSQL `vin_specs` and seed it from the decode file, filling `mfr_code` and `options` from `raw`.
+1. ~~Run the five SQL checks above and fix the queries.~~ Done 2026-10-09.
+2. ~~Create MSSQL `dbo.src_marketcheck__vin_decodes` and seed it from the decode file, filling `mfr_code` and `options` from `raw`.~~ Done 2026-10-09.
 3. Write `batch/run.py` stages 2–5 (no decoding or publishing yet) and pass the parity check. Then make the make/year change above in its own commit.
 4. Add stage 1 (decoding new VINs) with the MarketCheck key, and do a dry run with a small cap.
 5. Add stage 6 (publishing). Publish the data source to a test project on Tableau Server.
@@ -170,13 +177,13 @@ python -m venv .venv
 copy .env.example .env                      (fill in MSSQL_CONNECTION, MARKETCHECK_API_KEY, TABLEAU_*)
 ```
 
-One-time: run `batch/sql/vin_specs.sql` in MSSQL, then
+One-time: run `batch/sql/src_marketcheck__vin_decodes.sql` in MSSQL, then
 `.venv\Scripts\python -m batch.run seed-decodes .claude\decode-cache-2026-10-02.jsonl.gz`.
 
 Weekly, from the repo folder (Alteryx Run Command, working directory = repo):
 `.venv\Scripts\python.exe -m batch.run` → exit code 0 ok, 1 publish failed, 2 anything else; details in `runs\<date>\run.log`.
 
-Useful flags: `--skip-decode`, `--skip-publish`, `--decode-cap N`, `--local DIR` (read DIR\sales.parquet, transfer_candidates.parquet, vin_specs.parquet instead of MSSQL).
+Useful flags: `--skip-decode`, `--skip-publish`, `--decode-cap N`, `--local DIR` (read DIR\sales.parquet, transfer_candidates.parquet, src_marketcheck__vin_decodes.parquet instead of MSSQL).
 
 ## Not in the first version
 

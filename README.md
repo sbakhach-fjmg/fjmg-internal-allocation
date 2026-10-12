@@ -15,8 +15,8 @@ checks: [docs/transfer-pipeline-plan.md](docs/transfer-pipeline-plan.md).
 `python -m batch.run` (Alteryx Run Command, weekly):
 
 1. **Read** sales (last 6 months of used Retail/Lease deals), used cars in stock, and stored VIN decodes from
-   MSSQL: `batch/sql/sales.sql`, `batch/sql/transfer_candidates.sql`, table `dbo.vin_specs`.
-2. **Decode** VINs (sales and stock) not yet in `vin_specs` through MarketCheck and store them. Stops cleanly
+   MSSQL: `batch/sql/sales.sql`, `batch/sql/transfer_candidates.sql`, table `dbo.src_marketcheck__vin_decodes`.
+2. **Decode** VINs (sales and stock) not yet in `dbo.src_marketcheck__vin_decodes` through MarketCheck and store them. Stops cleanly
    at the monthly quota; a VIN that fails 3 times is given up.
 3. **Snapshot** the inputs to `runs/<date>/inputs/` so any week can be replayed.
 4. **Rank** stores for every car with `app/analysis/cohorts.py` and the rule in `batch/ranking_rule.yaml`.
@@ -80,7 +80,7 @@ copy .env.example .env
 Fill in `.env`: `MSSQL_CONNECTION` (Windows integrated auth, `Trusted_Connection=yes`), `MARKETCHECK_API_KEY`,
 `TABLEAU_SERVER_URL`, `TABLEAU_SITE`, `TABLEAU_PROJECT`, `TABLEAU_PAT_NAME`, `TABLEAU_PAT_SECRET`.
 
-One-time: run `batch/sql/vin_specs.sql` in MSSQL, then load the existing decodes:
+One-time: run `batch/sql/src_marketcheck__vin_decodes.sql` in MSSQL, then load the existing decodes:
 
 ```
 .venv\Scripts\python -m batch.run seed-decodes path\to\decode-cache-2026-10-02.jsonl.gz
@@ -101,9 +101,9 @@ From the repo folder (Alteryx Run Command: working directory = repo):
 |---|---|
 | `--skip-decode` | no MarketCheck calls this run |
 | `--skip-publish` | write `runs/<date>/` only, don't touch Tableau |
-| `--decode-cap N` | decode at most N VINs (default 12,000) |
+| `--decode-cap N` | decode at most N VINs, oldest stock first, then sales (default 25, about $2 on the current MarketCheck key) |
 | `--latest PATH` | where to write the fixed-path parquet copy (default `runs/transfer_placements_latest.parquet`) |
-| `--local DIR` | read `DIR/sales.parquet`, `transfer_candidates.parquet`, `vin_specs.parquet` instead of MSSQL; `--local runs/<date>/inputs` replays that week |
+| `--local DIR` | read `DIR/sales.parquet`, `transfer_candidates.parquet`, `src_marketcheck__vin_decodes.parquet` instead of MSSQL; `--local runs/<date>/inputs` replays that week |
 
 ## Batch layout
 
@@ -112,10 +112,10 @@ batch/run.py               entry point: the six steps, plus seed-decodes
 batch/rule.py              loads ranking_rule.yaml strictly
 batch/ranking_rule.yaml    the one ranking rule
 batch/place.py             app ranking code per car, builds the one output table
-batch/decode.py            seed / top up vin_specs, decode coverage
+batch/decode.py            seed / top up dbo.src_marketcheck__vin_decodes, decode coverage
 batch/sources.py           MSSQL or a folder of parquet files
 batch/publish.py           .hyper (pantab) and Tableau Server publish (tableauserverclient)
-batch/sql/                 sales, transfer candidates, vin_specs DDL
+batch/sql/                 sales, transfer candidates, src_marketcheck__vin_decodes DDL
 batch/tests/               ranking-rule tests
 runs/                      weekly snapshots, logs and the latest parquet (git-ignored)
 ```
