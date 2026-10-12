@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -20,6 +21,15 @@ import batch  # noqa: F401  (sets DATA_DIR before `app` is imported)
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("batch")
+LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
+_SECRET = re.compile(r"((?:api_key|token|secret|password|pwd)\w*\s*[=:]\s*)[^&;,\s\"']+", re.IGNORECASE)
+
+
+class RedactingFormatter(logging.Formatter):
+    """Masks key=value credentials (MarketCheck api_key in URLs, tokens, passwords) in every log line, tracebacks included."""
+
+    def format(self, record):
+        return _SECRET.sub(r"\1***", super().format(record))
 
 
 def _source(args):
@@ -50,7 +60,7 @@ def run(args) -> int:
     out = Path(args.runs_dir) / run_date
     (out / "inputs").mkdir(parents=True, exist_ok=True)
     fh = logging.FileHandler(out / "run.log", encoding="utf-8")
-    fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    fh.setFormatter(RedactingFormatter(LOG_FORMAT))
     logging.getLogger().addHandler(fh)
 
     src = _source(args)
@@ -65,7 +75,7 @@ def run(args) -> int:
         new, note = dc.decode_vins(todo, specs, args.decode_cap)
         src.save_specs(new)
         specs = dc.merge_specs(specs, new)
-        log.info("decode: %d VINs to decode; %s", len(todo), note)
+        (log.error if "rejected the API key" in note else log.info)("decode: %d VINs to decode; %s", len(todo), note)
 
     used = specs[specs["vin"].isin(set(deals["vin"]) | set(candidates["vin"]))].copy()
     used["raw"] = None   # bulky and unused by the ranking; the column stays so the snapshot replays with --local
@@ -144,7 +154,10 @@ def main(argv=None) -> int:
     p.add_argument("--skip-decode", action="store_true")
     p.add_argument("--skip-publish", action="store_true")
     args = p.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+    for h in logging.getLogger().handlers:
+        h.setFormatter(RedactingFormatter(LOG_FORMAT))
+    logging.getLogger("httpx").setLevel(logging.WARNING)   # its INFO lines print request URLs, which carry the MarketCheck key
     try:
         return seed_decodes(args) if args.cmd == "seed-decodes" else run(args)
     except Exception:

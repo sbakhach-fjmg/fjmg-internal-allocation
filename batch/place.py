@@ -57,6 +57,10 @@ def place(frame: pd.DataFrame, specs: pd.DataFrame, candidates: pd.DataFrame, lo
             rows.append({**base, "status": "no decode"})
             continue
         base.update({k: spec.get(k) for k in DECODE_COLS})
+        if spec.get("make"):   # the ranking matches on the decode; show its make/year, not inventory's ("MERCEDES")
+            base["make"] = str(spec["make"]).upper()
+        if spec.get("year") is not None:
+            base["year"] = int(spec["year"])
         mileage = int(c["mileage"]) if c.get("mileage") is not None else None
         veh = co.vehicle_from_spec(spec, mileage=mileage)
         rec = co.rank_stores(frame, veh, logic) if not frame.empty else None

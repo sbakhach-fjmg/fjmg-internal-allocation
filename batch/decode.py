@@ -2,6 +2,7 @@
 from __future__ import annotations
 import gzip
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -61,12 +62,17 @@ def decode_vins(vins: list, specs: pd.DataFrame, cap: int) -> tuple:
     attempts = dict(zip(specs["vin"], specs["decode_attempts"]))
     todo = vins[:cap]
 
+    rejected = threading.Event()
+
     def one(vin):
-        if mc.quota_blocked():
+        if mc.quota_blocked() or rejected.is_set():
             return None
         d = mc.decode_neovin(vin)
-        if d.get("_quota") or str(d.get("_error", "")).startswith("marketcheck disabled"):
-            return None   # quota hit (here or in another worker): not a real attempt, retry next run
+        if d.get("_status") in (401, 403):
+            rejected.set()   # bad key: says nothing about the VIN, and every other call will fail the same way
+            return None
+        if "_error" in d and "_status" not in d:
+            return None   # quota, network or server error, not an answer about this VIN: retry next run uncounted
         rec = mc.normalize(vin, d)
         rec["decode_attempts"] = int(attempts.get(vin) or 0) + 1
         return rec
@@ -79,6 +85,8 @@ def decode_vins(vins: list, specs: pd.DataFrame, cap: int) -> tuple:
         note += f"; {len(vins) - cap} left for the next run (cap {cap})"
     if mc.quota_blocked():
         note += "; stopped: MarketCheck quota exhausted"
+    if rejected.is_set():
+        note += "; stopped: MarketCheck rejected the API key (401/403), check MARKETCHECK_API_KEY"
     return rows, note
 
 
@@ -87,7 +95,9 @@ def merge_specs(specs: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
         return specs
     if specs.empty:
         return new
-    return pd.concat([specs[~specs["vin"].isin(new["vin"])], new], ignore_index=True)
+    keep = specs[~specs["vin"].isin(new["vin"])]
+    parts = [f.dropna(axis=1, how="all") for f in (keep, new)]   # all-null columns (raw) make concat warn
+    return pd.concat(parts, ignore_index=True).reindex(columns=SPEC_TABLE_COLS)
 
 
 def coverage(frame: pd.DataFrame, specs: pd.DataFrame) -> tuple:

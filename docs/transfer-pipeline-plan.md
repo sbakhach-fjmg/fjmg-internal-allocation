@@ -87,7 +87,7 @@ Tableau Server gets **one data source, `transfer_placements`**, so everything ca
 | Group | Columns |
 |---|---|
 | Run | `run_date`, `decode_coverage`, `coverage_warning` |
-| Vehicle (inventory) | `vin`, `stock_no`, `current_store`, `current_store_name`, `days_in_stock`, `receive_date`, `mileage`, `year`, `make`, `model`, `dealer_cost` |
+| Vehicle (inventory) | `vin`, `stock_no`, `current_store`, `current_store_name`, `days_in_stock`, `receive_date`, `mileage`, `year`, `make`, `model`, `dealer_cost` (`year` and `make` come from the decode when there is one, since that is what the ranking matched on) |
 | Vehicle (decode) | `trim`, `version`, `mfr_code`, `engine`, `ext_color`, `int_color` |
 | Pool | `status` (`placed` / `no decode` / `no comparables`), `match_level`, `exact`, `thin`, `pool_n`, `stores_in_pool`, `relaxed_fields`, `top_store`, `action` ("Keep at current store" / "Transfer to X" / "No ranked store"), `current_store_rank` |
 | Store | `store`, `store_row`, `store_name`, `rank` (null = not ranked, too few deals), `is_current_store`, `n`, `total_hat`, `front_hat`, `back_hat`, `sum_total`, `sum_front`, `days_hat`, `days` (median), `annual`, `similar`, `why` |
