@@ -122,7 +122,7 @@ runs/                      weekly snapshots, logs and the latest parquet (git-ig
 
 ## Legacy web app (being retired)
 
-Kept until the batch output is confirmed to match it, then removed in one commit.
+The batch reproduces its rankings exactly (parity check, 2026-10-12). The code stays as a local fallback until the author signs off on the Tableau dashboard, then it is removed in one commit. The hosting setup (Docker, Caddy, Railway) is already gone; it only runs locally now.
 
 ### What the web app does
 
@@ -162,47 +162,10 @@ color / factory package breakdowns) · **Stores** (store summary, where each sto
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env     # set MARKETCHECK_API_KEY (and APP_PASSWORD/APP_SECRET if exposed)
-./run.sh                 # http://localhost:8010
+.venv/bin/uvicorn app.main:app --port 8010   # http://localhost:8010
 ```
 
 CLI: `python -m app.cli load <file>` · `python -m app.cli decode [limit]` · `python -m app.cli status`.
-
-### Deploy to Railway
-
-1. Push this folder to a Git repo (`.env` and `data/` are ignored) and create a Railway project from it.
-   The `Dockerfile` + `railway.json` are picked up automatically (health check `/healthz`).
-2. **Volume**: add a volume mounted at `/data` (SQLite db, uploads, MarketCheck cache live there).
-3. **Variables**: `MARKETCHECK_API_KEY`, `APP_PASSWORD` (sign-in), `APP_SECRET` (long random string),
-   `DECODE_PASSWORD` (needed to start a VIN backfill from the Data page; defaults to `APP_PASSWORD`),
-   `DATA_DIR=/data`. Optional: `ANALYSIS_MONTHS`, `PRIOR_K`, `MIN_N_STORE`, `MIN_N_BEST`, `MIN_N_COHORT`,
-   `GROSS_OVERRIDE_PCT`, `GROSS_OVERRIDE_ABS`, `MARKETCHECK_WORKERS`,
-   `MARKETCHECK_RATE_PER_SEC`, `MARKETCHECK_MAX_PER_RUN`.
-4. **Domain**: in Railway add a custom domain (e.g. `used.<your-domain>`), then add the CNAME it gives you
-   in the WordPress.com DNS for the domain. Link to it from a WordPress page or menu item.
-5. First visit: sign in, upload the Advent file on **Data**, let the decode backfill finish.
-
-Never run it on the internet with `APP_PASSWORD` empty.
-
-### Run on the internal VM (Docker Compose)
-
-Runs on `switch-dagster` with Docker Compose: the app plus Caddy in front for HTTPS at
-`https://switch-dagster`. The app's own port is not published.
-
-1. **Clone** with a read-only deploy key, then `cd` into the repo.
-2. **`.env`**: `cp .env.example .env`, set `MARKETCHECK_API_KEY`, `APP_PASSWORD`, `DECODE_PASSWORD` and
-   `APP_SECRET` (`openssl rand -hex 32`), then `chmod 600 .env`. HTTPS is required: the login cookie is
-   `Secure` whenever `APP_SECRET` is set, so plain `http://` sign-in loops back to `/login`.
-3. **Start**: `docker compose up -d --build`. Check with `docker compose ps` (app healthy) and
-   `curl -k --resolve switch-dagster:443:127.0.0.1 https://switch-dagster/healthz`.
-4. **Trust the certificate** (Caddy `tls internal`, no IT needed). On the VM:
-   `docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt`.
-   On each user's Windows machine (no admin): `certutil -user -addstore Root caddy-root.crt`.
-   Edge and Chrome use this store; Firefox needs its own import.
-5. **Update**: `git pull && docker compose up -d --build`.
-
-Keep `./data` (SQLite db, uploads, MarketCheck cache) and the `caddy_data` volume (Caddy's certificate
-authority). Never run `docker compose down -v`: it deletes `caddy_data`, and every user would have to trust
-a new certificate.
 
 ### Web app layout
 
@@ -217,5 +180,5 @@ app/analysis/cohorts.py  cohort × store scoring, shrinkage, ranking, matrices, 
 app/analysis/enrich.py   background VIN decode backfill
 app/cli.py               load / decode / status from the command line
 app/templates/           Jinja2 pages (Tailwind via CDN)
-data/                    SQLite db, uploads (not source; on Railway this is the /data volume)
+data/                    SQLite db, uploads (not source)
 ```

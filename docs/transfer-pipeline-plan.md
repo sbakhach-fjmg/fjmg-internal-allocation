@@ -169,7 +169,7 @@ The fix: when the deal is decoded, use the decode's make and year; otherwise fal
 5. Add stage 6 (publishing). Publish the data source to a test project on Tableau Server.
 6. Build the workbook on the one data source: a list filtered by days in stock (one row per `vin`), and a detail screen filtered to the selected `vin`.
 7. Schedule it in Alteryx with Run Command, then hand over to the author.
-8. After they've signed off, delete the web layer in one commit: `app/main.py` routes, templates, Dockerfile, Compose, Caddyfile and `railway.json`.
+8. After they've signed off, delete the rest of the web layer in one commit: `app/main.py`, `auth.py`, `cli.py`, `ingest/`, `analysis/enrich.py`, templates, static and the web `requirements.txt`. (Hosting files — Dockerfile, Compose, Caddyfile, `railway.json`, `run.sh` — were removed 2026-10-12.)
 
 ## Running it
 
