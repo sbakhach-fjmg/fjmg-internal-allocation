@@ -66,6 +66,9 @@ def run(args) -> int:
     src = _source(args)
     deals = src.read("sales")
     candidates = src.read("transfer_candidates")
+    if candidates["vin"].duplicated().any():   # the SQL dedupes; a hand-made --local file may not, and dupes double the deal rows
+        log.warning("dropping %d duplicate candidate VINs", int(candidates["vin"].duplicated().sum()))
+        candidates = candidates.drop_duplicates("vin")
     specs = src.read_specs()
     log.info("read %d sales deals, %d transfer candidates, %d decodes", len(deals), len(candidates), len(specs))
 

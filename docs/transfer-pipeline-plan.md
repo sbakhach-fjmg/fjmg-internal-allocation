@@ -148,6 +148,8 @@ The ranking code is reused unchanged, so the risk is in the data path, not the l
   2. Run the reference through the app's code on it. The batch script must match.
   3. Then the author checks about 10 VINs on their live site against the dashboard. Small differences are expected because the data is newer. A different top store **with a different match level** points to a mapping error.
 
+**Result, 2026-10-12 (with `used_sales.db`):** 64 cars sampled from it (59 random decoded, plus 5 whose decode lacks `mfr_code`), each placed at the store and mileage of one of its own deals. The app's own `place()` (MarketCheck off) and the batch (`--local` on the same database exported to parquet) agree on all of them: status, match level, exact/thin, pool size, stores in pool, relaxed fields, store order and rank for 187 ranked stores, per-store `n`, `why`, `total_hat`, `sum_total` and median days, and the same 1,021 comparable deals. Step 3 of the MSSQL diff was done on 2026-10-09 (see *SQL: checks* above).
+
 Only the ranking-rule loading has automated tests (`batch/tests/test_rule.py`). The parity comparison is a manual step when the data arrives. A `--local` run against a past `runs/<date>/inputs/` folder replays that week exactly.
 
 ## One deliberate change after parity: make and year from the decode
@@ -160,8 +162,8 @@ The fix: when the deal is decoded, use the decode's make and year; otherwise fal
 
 1. ~~Run the five SQL checks above and fix the queries.~~ Done 2026-10-09.
 2. ~~Create MSSQL `dbo.src_marketcheck__vin_decodes` and seed it from the decode file, filling `mfr_code` and `options` from `raw`.~~ Done 2026-10-09.
-3. Write `batch/run.py` stages 2–5 (no decoding or publishing yet) and pass the parity check. Then make the make/year change above in its own commit.
-4. Add stage 1 (decoding new VINs) with the MarketCheck key, and do a dry run with a small cap.
+3. ~~Write `batch/run.py` stages 2–5 (no decoding or publishing yet) and pass the parity check.~~ Parity passed 2026-10-12. Then make the make/year change above in its own commit.
+4. ~~Add stage 1 (decoding new VINs) with the MarketCheck key, and do a dry run with a small cap.~~ Done 2026-10-12 (25 VINs).
 5. Add stage 6 (publishing). Publish the data source to a test project on Tableau Server.
 6. Build the workbook on the one data source: a list filtered by days in stock (one row per `vin`), and a detail screen filtered to the selected `vin`.
 7. Schedule it in Alteryx with Run Command, then hand over to the author.
