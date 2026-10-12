@@ -110,7 +110,7 @@ def run(args) -> int:
         return 0
     from batch.publish import publish, write_hyper
     try:
-        path = out / "transfer_placements.hyper"
+        path = out / "fj_internal_allocation.hyper"   # the file name is the Tableau data source name
         write_hyper(table, path)
         publish([path])
         log.info("published %s", path.stem)

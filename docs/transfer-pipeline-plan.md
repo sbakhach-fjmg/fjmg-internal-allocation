@@ -18,7 +18,7 @@ Alteryx (weekly schedule)
        3. snapshot   runs\<date>\inputs\*.parquet
        4. place      app/analysis/cohorts.py + app/decode/taxonomy.py (unchanged), rule from ranking_rule.yaml
        5. write      runs\<date>\transfer_placements.parquet + runs\transfer_placements_latest.parquet
-       6. publish    one .hyper (pantab) → Tableau Server data source `transfer_placements`, overwrite
+       6. publish    one .hyper (pantab) → Tableau Server data source `fj_internal_allocation`, overwrite
 ```
 
 - **Credentials.** MSSQL uses Windows integrated auth through `mssql-python`, under the account that runs Alteryx (`MSSQL_CONNECTION` with `Trusted_Connection=yes`). The MarketCheck key and the Tableau personal access token go in the repo-root `.env` (see `.env.example`), readable only by that account.
@@ -80,7 +80,7 @@ Decoding the sales VINs matters as much as decoding the cars being placed. A sol
 
 ## Output: one table
 
-Tableau Server gets **one data source, `transfer_placements`**, so everything can be filtered and sliced in one place.
+Tableau Server gets **one data source, `fj_internal_allocation`**, so everything can be filtered and sliced in one place.
 
 **Grain: one row per transfer candidate × comparable deal.** The candidate and store columns repeat on every deal row of that store. A candidate with status `no decode` or `no comparables` keeps a single row with empty store and deal columns.
 

@@ -18,9 +18,12 @@ def publish(paths: list):
     auth = TSC.PersonalAccessTokenAuth(env["TABLEAU_PAT_NAME"], env["TABLEAU_PAT_SECRET"], site_id=env.get("TABLEAU_SITE", ""))
     server = TSC.Server(env["TABLEAU_SERVER_URL"], use_server_version=True)
     with server.auth.sign_in(auth):
-        project = next((p for p in TSC.Pager(server.projects) if p.name == env["TABLEAU_PROJECT"]), None)
+        projects = list(TSC.Pager(server.projects))
+        want = env["TABLEAU_PROJECT"].strip().casefold()   # the built-in project shows as "Default"
+        project = next((p for p in projects if p.name.casefold() == want), None)
         if project is None:
-            raise RuntimeError(f"Tableau project {env['TABLEAU_PROJECT']!r} not found")
+            raise RuntimeError(f"Tableau project {env['TABLEAU_PROJECT']!r} not found; projects visible to this token: "
+                               f"{sorted(p.name for p in projects)}")
         for p in paths:
             item = TSC.DatasourceItem(project.id, name=Path(p).stem)
             server.datasources.publish(item, str(p), TSC.Server.PublishMode.Overwrite)

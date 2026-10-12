@@ -22,7 +22,7 @@ checks: [docs/transfer-pipeline-plan.md](docs/transfer-pipeline-plan.md).
 4. **Rank** stores for every car with `app/analysis/cohorts.py` and the rule in `batch/ranking_rule.yaml`.
 5. **Write** one table to `runs/<date>/transfer_placements.parquet`, plus a copy at a fixed path,
    `runs/transfer_placements_latest.parquet`, overwritten each run (see *Exploring the output*).
-6. **Publish** it as the `transfer_placements` data source on Tableau Server (overwritten each week).
+6. **Publish** it as the `fj_internal_allocation` data source on Tableau Server (overwritten each week).
 
 Exit code `0` ok, `1` publishing failed (local outputs still written), `2` anything else. Details in
 `runs/<date>/run.log`, including decode coverage: below 98% of in-window sales decoded, the output carries a
