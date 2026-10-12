@@ -158,11 +158,13 @@ Only the ranking-rule loading has automated tests (`batch/tests/test_rule.py`). 
 
 The fix: when the deal is decoded, use the decode's make and year; otherwise fall back to the sales row. This is about a two-line change. Make it **after** the parity check passes, as its own commit, and re-run the comparison. Expect differences only where FactSales and the decode disagreed.
 
+**Done 2026-10-12.** In the author's database, 62 decoded deals change: 60 by make (22 "MERCED SPRINTER", 20 "MERCEDES", 3 "MERCEDES BENZ" → MERCEDES-BENZ; 5 DODGE → RAM; LANDROVER, MASERATTI, LUCID GT) and 2 by year. Re-running the 64-car comparison, the app and the batch still agree exactly, and only 1 car's result moved versus before the change: a C-Class pool gained one deal (22 → 23) that had been spelled "MERCEDES"; same match level and top store. Note that this changes the web app's results too, since it is the same code.
+
 ## Build order
 
 1. ~~Run the five SQL checks above and fix the queries.~~ Done 2026-10-09.
 2. ~~Create MSSQL `dbo.src_marketcheck__vin_decodes` and seed it from the decode file, filling `mfr_code` and `options` from `raw`.~~ Done 2026-10-09.
-3. ~~Write `batch/run.py` stages 2–5 (no decoding or publishing yet) and pass the parity check.~~ Parity passed 2026-10-12. Then make the make/year change above in its own commit.
+3. ~~Write `batch/run.py` stages 2–5 (no decoding or publishing yet) and pass the parity check.~~ Parity passed 2026-10-12; make/year change done the same day.
 4. ~~Add stage 1 (decoding new VINs) with the MarketCheck key, and do a dry run with a small cap.~~ Done 2026-10-12 (25 VINs).
 5. Add stage 6 (publishing). Publish the data source to a test project on Tableau Server.
 6. Build the workbook on the one data source: a list filtered by days in stock (one row per `vin`), and a detail screen filtered to the selected `vin`.

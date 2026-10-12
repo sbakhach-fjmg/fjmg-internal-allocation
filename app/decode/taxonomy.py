@@ -114,9 +114,13 @@ def clean_trim(make: str, trim, version) -> str:
 
 def canonical(deal: dict, spec: dict) -> dict:
     """Return year, make, model, trim, body, drivetrain, powertrain, spec, mileage_band, decoded, ext_base."""
-    year = deal.get("year")
-    make = (deal.get("make") or (spec or {}).get("make") or UNKNOWN).upper()
     decoded = bool(spec) and spec.get("error") is None and bool(spec.get("model"))
+    if decoded:   # MarketCheck's make/year, so a sales-file spelling ("MERCEDES", "LANDROVER") can't split a brand
+        year = spec.get("year") or deal.get("year")
+        make = (spec.get("make") or deal.get("make") or UNKNOWN).upper()
+    else:
+        year = deal.get("year")
+        make = (deal.get("make") or (spec or {}).get("make") or UNKNOWN).upper()
     version = mfr = engine = fuel = ext_name = int_name = UNKNOWN
     options = []
     if decoded:
